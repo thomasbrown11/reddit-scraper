@@ -1,0 +1,4 @@
+.env
+deals.csv
+seen_ids.txt
+__pycache__/
