@@ -52,6 +52,36 @@ def send_email(subject, body, to_email):
     except Exception as e:
         print("❌ Failed to send email:", e)
 
+#Email helper function to send CSV file as an attachment
+#######################################
+
+def send_csv_email():
+    from_addr = os.getenv("EMAIL_ADDRESS")
+    to_addr = os.getenv("EMAIL_ADDRESS")
+    subject = "📦 Daily PC Deals CSV"
+    body = "Attached is your daily deals.csv export."
+
+    msg = EmailMessage()
+    msg["From"] = from_addr
+    msg["To"] = to_addr
+    msg["Subject"] = subject
+    msg.set_content(body)
+
+    with open("deals.csv", "rb") as f:
+        file_data = f.read()
+        file_name = "deals.csv"
+    
+    msg.add_attachment(file_data, maintype="text", subtype="csv", filename=file_name)
+
+    try:
+        with smtplib.SMTP_SSL("smtp.gmail.com", 465) as smtp:
+            smtp.login(from_addr, os.getenv("EMAIL_PASSWORD"))
+            smtp.send_message(msg)
+        print("📧 CSV email sent successfully.")
+    except Exception as e:
+        print("❌ Failed to send CSV email:", e)
+
+
 #######################################
 
 # helper function to extract price from title using regex
@@ -170,7 +200,7 @@ def run_scraper():
                             post_title = post.title
                             email_subject = "🎯 Highlighted Deal Alert"
                             email_body = f"{post_title}\n{post_url}"
-                            send_email(email_subject, email_body, "thomas.s.brown@gmail.com")  # or any email address you want
+                            send_email(email_subject, email_body, os.getenv("EMAIL_ADDRESS"))  # or any email address you want
 
                         MATCHED_POSTS[part].append({
                             "title": post.title,
@@ -226,11 +256,19 @@ def run_scraper():
 
 # Main loop to run the scraper every 30 minutes
 
+run_count=0 #track runs and send csv to email 1 time per day
+
 while True:
     print("🔁 Running scraper at", datetime.now())
 
     try:
         run_scraper()
+        run_count += 1
+
+        if run_count >= 48:  # ~24 hours if running every 30 minutes
+            send_csv_email()
+            run_count = 0
+
     except Exception as e:
         print("❌ Unhandled error in run_scraper:")
         print(e)
