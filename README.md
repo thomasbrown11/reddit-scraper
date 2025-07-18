@@ -10,7 +10,7 @@ A Python script that scrapes recent PC hardware deals from multiple subreddits, 
 - Filters posts by flair and keywords to categorize hardware parts (GPU, CPU, SSD, etc.).
 - Extracts price from post titles when available.
 - Highlights and emails notifications for specific targeted models.
-- Saves matched deals in an append-only CSV file.
+- Saves matched deals in an append-only CSV file. CSV sent to email once daily. 
 - Avoids duplicate processing by tracking seen post IDs.
 - Runs continuously every 30 minutes with error handling.
 
@@ -53,4 +53,17 @@ A Python script that scrapes recent PC hardware deals from multiple subreddits, 
 
     pip install -r requirements.txt
 
+## CSV Output
 
+All matching deals are saved to `deals.csv` with the following fields:
+
+- **`highlight`** – `YES` if it matches a target model
+- **`part`** – hardware category (GPU, CPU, etc.)
+- **`created`** – UTC timestamp of the post
+- **`price`** – extracted price from the title (if available)
+- **`title`** – full Reddit post title
+- **`url`** – direct link to the Reddit post
+- **`subreddit`** – which subreddit the post came from
+- **`flair`** – the Reddit flair tag on the post
+
+This allows you to browse past deals offline or filter for additional patterns later.
