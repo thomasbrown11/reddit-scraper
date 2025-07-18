@@ -49,6 +49,6 @@ A Python script that scrapes recent PC hardware deals from multiple subreddits, 
 
 3. Install dependencies: 
 
-    pip install praw python-dotenv
+    pip install -r requirements.txt
 
 
