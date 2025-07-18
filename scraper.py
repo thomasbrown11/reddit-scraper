@@ -98,8 +98,6 @@ def extract_price(title):
 
 EXCLUDED_FLAIRS = ["closed", "trading", "buying", "expired :table_flip:", "phone", "watch", "home"]
 
-EXCLUDED_GPUS = ["itx", "micro-atx"]
-
 # substring matches for part matching/sorting
 PART_KEYWORDS = {
     "GPU": ["gpu", "4070", "4080", "7800", "7900", "9070", "5080", "5070", "3080", "3090"],
@@ -129,7 +127,7 @@ for part, keywords in PART_KEYWORDS.items():
 
 # substring matches for target models for highlight flag (and email?)
 TARGET_MODELS = [
-    "7800x3d", "7900xt", "9070", "990 pro", "980 pro", "sn850x", "4080 super", "14600k", "peeless", "noctua"
+    "7800x3d", "7900xt", "9070", "990 pro", "980 pro", "sn850x", "4080 super", "14600k", "peeless", "noctua", "tomahawk"
 ]
 
 ###########################################
