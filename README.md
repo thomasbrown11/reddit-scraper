@@ -19,15 +19,17 @@ A Python script that scrapes recent PC hardware deals from multiple subreddits, 
 ## Requirements
 
 - Python 3.7 or higher
-- Reddit API credentials (client ID, secret, username, password, user agent... save to a local .ENV file in same directory)
-    .env: 
-        CLIENT_ID=your_reddit_client_id
-        CLIENT_SECRET=your_reddit_client_secret
-        USERNAME=your_reddit_username
-        PASSWORD=your_reddit_password
-        USER_AGENT=your_user_agent_string
-        EMAIL_ADDRESS=your_gmail_address@gmail.com
-        EMAIL_PASSWORD=your_gmail_app_password
+- Reddit API credentials (client ID, secret, username, password, user agent... save to a local `.env` file in the same directory):
+
+  ```env
+  CLIENT_ID=your_reddit_client_id
+  CLIENT_SECRET=your_reddit_client_secret
+  USERNAME=your_reddit_username
+  PASSWORD=your_reddit_password
+  USER_AGENT=your_user_agent_string
+  EMAIL_ADDRESS=your_gmail_address@gmail.com
+  EMAIL_PASSWORD=your_gmail_app_password
+
 
 - Gmail account with "App Password" enabled for email notifications
 - Libraries:
