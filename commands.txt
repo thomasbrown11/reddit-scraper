@@ -1,0 +1,68 @@
+Reddit Scraper - Cheatsheet
+============================
+
+🧰 TMUX COMMANDS
+----------------------------
+
+# Start a new tmux session named "scraper"
+tmux new -s scraper
+
+# Detach from the tmux session (leave it running in the background)
+[Ctrl + B], then press D
+
+# Reattach to the session later
+tmux attach -t scraper
+
+# List all tmux sessions
+tmux ls
+
+# Kill the session (use only when you want to stop the script)
+tmux kill-session -t scraper
+
+# Check status of a session (replace 'scraper' if you named it differently)
+tmux display-message -t scraper -p '#S: attached=#{session_attached}, windows=#{session_windows}, created=#{session_created}, size=#{session_width}x#{session_height}'
+
+--------------------------------------------------
+
+📤 COPY CSV FILE TO LOCAL MACHINE (from your Pi)
+--------------------------------------------------
+
+# From your Mac or another local computer, use scp to download the CSV
+# Replace 'pi' with your actual username and 'raspberrypi.local' or IP with your Pi's address
+
+scp admin@raspberrypi.local:/home/pi/deals.csv ~/Downloads/
+
+# Example using IP address:
+scp admin@192.168.0.16:~/reddit-scraper/deals.csv ~/Downloads/
+
+--------------------------------------------------
+
+💡 TIPS
+--------------------------------------------------
+
+- Always activate your virtual environment before running the script manually:
+  source venv/bin/activate
+
+- You can safely close your SSH terminal after detaching from tmux.
+  The script will keep running inside the tmux session.
+
+- To confirm your script is still running, reattach with:
+  tmux attach -t scraper
+
+============================
+
+1. ssh into your pi: ssh admin@192.168.0.16 and cd to reddit-scraper
+2. Install git: sudo apt install git
+3. Clone reddit scraper: git clone https://github.com/thomasbrown11/reddit-scraper.git
+4. Scp your .env from local to server or create new .env. 
+5. Setup virtual environment: 
+	python3 -m venv venv
+6. Install tmux: sudo apt install tmux
+7. Init new tmux session: tmux new -s scraper
+8. Run venv virtual environment: source venv/bin/activate
+9. Install dependencies: pip install -r requirements.txt
+10. Run script: python3 scraper.py
+11. Detach from tmux session with Ctrl+B then D
+
+ Manual copy csv:
+scp admin@192.168.0.16:~/reddit-scraper/deals.csv ~/Downloads/

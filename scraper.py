@@ -127,7 +127,7 @@ for part, keywords in PART_KEYWORDS.items():
 
 # substring matches for target models for highlight flag (and email?)
 TARGET_MODELS = [
-    "7800x3d", "7900xt", "9070", "990 pro", "980 pro", "sn850x", "4080 super", "14600k", "peeless", "noctua", "tomahawk"
+    "7800x3d", "7900xt", "9070", "990 pro", "980 pro", "sn850x", "4080 super", "5070", "14600k", "peerless", "nh-d15", "tomahawk"
 ]
 
 ###########################################
