@@ -33,7 +33,7 @@ tmux display-message -t scraper -p '#S: attached=#{session_attached}, windows=#{
 scp admin@raspberrypi.local:/home/pi/deals.csv ~/Downloads/
 
 # Example using IP address:
-scp admin@192.168.0.16:~/reddit-scraper/deals.csv ~/Downloads/
+scp admin@raspberrypi.local:~/reddit-scraper/deals.csv ~/Downloads/
 
 --------------------------------------------------
 
@@ -51,7 +51,7 @@ scp admin@192.168.0.16:~/reddit-scraper/deals.csv ~/Downloads/
 
 ============================
 
-1. ssh into your pi: ssh admin@192.168.0.16 and cd to reddit-scraper
+1. ssh into your pi: ssh admin@[server ip]and cd to reddit-scraper
 2. Install git: sudo apt install git
 3. Clone reddit scraper: git clone https://github.com/thomasbrown11/reddit-scraper.git
 4. Scp your .env from local to server or create new .env. 
@@ -65,4 +65,4 @@ scp admin@192.168.0.16:~/reddit-scraper/deals.csv ~/Downloads/
 11. Detach from tmux session with Ctrl+B then D
 
  Manual copy csv:
-scp admin@192.168.0.16:~/reddit-scraper/deals.csv ~/Downloads/
+scp admin@raspberrypi.local:~/reddit-scraper/deals.csv ~/Downloads/
