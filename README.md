@@ -62,7 +62,14 @@ It is designed as a lightweight deal intelligence pipeline:
 
 ## Configuration
 
-Create an .env file in the project root:
+This project uses two configuration files:
+
+### 1. Environment Variables (.env)
+
+Used for authentication and external services.
+
+Create a .env file in the project root:
+
 ```env
 CLIENT_ID=your_reddit_client_id
 CLIENT_SECRET=your_reddit_client_secret
@@ -74,6 +81,52 @@ EMAIL_ADDRESS=your_gmail_address@gmail.com
 EMAIL_PASSWORD=your_gmail_app_password
 ```
 **Gmail requires an App Password for SMTP authentication.**
+
+**NOTE:** These values are secrets and should never be committed to version control.
+
+### 2. Scraper Configuration (config.json)
+
+This file controls all scraping logic and classification behavior.
+
+It defines:
+
+- Which posts to exclude
+- How posts are categorized into hardware parts
+- Which models are considered “target deals”
+- Thresholds used for highlighting deals in email alerts
+
+Example:
+
+```json
+{
+  "excluded_flairs": ["closed", "trading", "buying", "expired"],
+  "part_keywords": {
+    "GPU": ["gpu", "4070", "4080"],
+    "CPU": ["cpu", "7800x3d"]
+  },
+  "target_models": {
+    "7800x3d": { "base_price": 380 },
+    "9070 xt": { "base_price": 650 }
+  }
+}
+```
+### Important Notes
+- **"part_keywords"** is fully manual:
+	- Controls how posts are categorized into parts (GPU, CPU, SSD, etc.)
+	- Adding new hardware detection requires updating this list
+- **"target_models"** is fully manual
+	- Defines which products are tracked for “deal highlighting”
+	- base_price is used as a threshold reference for email highlighting logic
+- This file acts as the core rule engine for deal detection
+
+---
+
+## Why this structure exists
+
+Separating .env and config.json allows:
+
+- .env: environment-specific secrets
+- config.json: tunable scraping + classification logic without code changes
 
 ---
 
