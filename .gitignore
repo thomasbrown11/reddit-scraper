@@ -1,6 +1,15 @@
+# virtual environments
+venv/
+env/
+scraper/
+.venv/
+
+# python junk
+__pycache__/
+*.pyc
+
+# local data
 .env
 latest_deals.csv
 deals_history.csv
 seen_ids.txt
-__pycache__/
-venv/
