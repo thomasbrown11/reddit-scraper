@@ -1,4 +1,4 @@
-import os #built-in python library for environment variables
+import os # built-in python library for environment variables
 from dotenv import load_dotenv # import private info
 import praw # for reddit api interaction
 from datetime import datetime, timezone, timedelta
@@ -7,6 +7,9 @@ import time # automate scraping
 import re # for regex matching
 import smtplib # for sending emails
 from email.message import EmailMessage # for email message creation
+
+import json # for config values
+import traceback
 
 load_dotenv()  # Load environment variables from .env file
 
@@ -19,7 +22,8 @@ reddit = praw.Reddit(
     user_agent=os.getenv("USER_AGENT")
 )
 
-# helper functions to load and save seen post IDS to deduplicate posts
+#######################################
+# Seen IDs helper functions 
 #######################################
 
 def load_seen_ids(filepath="seen_ids.txt"):
@@ -34,32 +38,242 @@ def save_seen_ids(seen_ids, filepath="seen_ids.txt"):
         for post_id in seen_ids:
             f.write(post_id + "\n")
 
-#email helper function to send email notifications
+#######################################
+# Price extraction
 #######################################
 
-def send_email(subject, body, to_email):
-    msg = EmailMessage()
-    msg["Subject"] = subject
-    msg["From"] = os.getenv("EMAIL_ADDRESS")
-    msg["To"] = to_email
-    msg.set_content(body)
+def price_to_float(price_str):
+    """
+    Converts '$1,199.99' -> 1199.99
+    Returns None if conversion fails.
+    """
+    try:
+        return float(
+            price_str.replace("$", "").replace(",", "")
+        )
+    except (ValueError, AttributeError):
+        return None
+
+
+def extract_price(title):
+    prices = re.findall(r"\$\d[\d,]*(?:\.\d{1,2})?", title)
+
+    if not prices:
+        return ""
 
     try:
-        with smtplib.SMTP_SSL("smtp.gmail.com", 465) as smtp:
-            smtp.login(os.getenv("EMAIL_ADDRESS"), os.getenv("EMAIL_PASSWORD"))
-            smtp.send_message(msg)
-        print("📧 Email sent successfully.")
-    except Exception as e:
-        print("❌ Failed to send email:", e)
+        # use largest dollar value found in title
+        return max(prices, key=price_to_float)
+    except Exception:
+        return ""
 
-#Email helper function to send CSV file as an attachment
+#######################################
+# Deal evaluation
 #######################################
 
-def send_csv_email():
+def evaluate_price(title, models_config):
+    title_l = title.lower()
+
+    price_str = extract_price(title)
+    if not price_str:
+        return ""
+
+    price = price_to_float(price_str)
+    if price is None:
+        return ""
+
+    best_tier = ""
+
+    for model, meta in models_config.items():
+
+        if model not in title_l:
+            continue
+
+        base = meta.get("base_price")
+
+        if not isinstance(base, (int, float)):
+            continue
+
+        try:
+            discount = (base - price) / base
+        except ZeroDivisionError:
+            continue
+
+        if discount >= 0.25:
+            return "GREAT"
+
+        elif discount >= 0.10:
+            best_tier = "GOOD"
+
+        elif discount >= 0:
+            best_tier = "OK"
+
+    return best_tier
+
+#######################################
+# Config
+#######################################
+
+# Load config.json (must be in project root)
+with open("config.json", "r", encoding="utf-8") as f:
+    config = json.load(f)
+
+# hard filter for unwanted posts 
+# buildapcsales uses a flair system to categorize by part type or expired.. reference with .link_flair_text
+# hardwareswap uses a flair system to categorize by SELLING, BUYING, TRADING, or CLOSED
+EXCLUDED_FLAIRS = config["excluded_flairs"]
+
+# object map sorts posts to cateogry based on string match 
+PART_KEYWORDS = config["part_keywords"]
+
+KEYWORD_TO_PART = {
+    kw.lower().strip(): part
+    for part, keywords in PART_KEYWORDS.items()
+    for kw in keywords
+}
+
+# substring matches for target models for highlight flag (and email?)
+TARGET_MODELS = config["target_models"]
+
+#######################################
+# Email (summary + attachment)
+#######################################
+
+# def send_summary_email(matched_posts):
+#     from_addr = os.getenv("EMAIL_ADDRESS")
+#     to_addr = os.getenv("EMAIL_ADDRESS")
+
+#     subject = "💰 PC Deals Summary"
+#     lines = []
+
+#     def add_tier_block(label, emoji, posts):
+#         if not posts:
+#             return
+#         lines.append(f"\n{emoji} {label}")
+#         for p in posts:
+#             lines.append(
+#                 f"- {p.get('title', '')} {p.get('price', '')}\n  {p.get('url', '')}"
+#             )
+
+#     for part, posts in matched_posts.items():
+
+#         # group by tier
+#         great = [p for p in posts if p.get("deal_tier") == "GREAT"]
+#         good  = [p for p in posts if p.get("deal_tier") == "GOOD"]
+#         ok    = [p for p in posts if p.get("deal_tier") == "OK"]
+
+#         # skip empty categories entirely
+#         if not (great or good or ok):
+#             continue
+
+#         lines.append(f"\n=== {part} ===")
+
+#         add_tier_block("GREAT DEALS", "🔥", great)
+#         add_tier_block("GOOD DEALS", "🟢", good)
+#         add_tier_block("OK DEALS", "🟡", ok)
+
+#     body = "\n".join(lines).strip()
+
+#     if not body:
+#         body = "No deals found this run."
+
+#     msg = EmailMessage()
+#     msg["From"] = from_addr
+#     msg["To"] = to_addr
+#     msg["Subject"] = subject
+#     msg.set_content(body)
+
+#     # attach CSV
+#     # if os.path.exists("deals.csv"):
+#     #     with open("deals.csv", "rb") as f:
+#     if os.path.exists("latest_deals.csv"):
+#         with open("latest_deals.csv", "rb") as f:
+#             msg.add_attachment(
+#                 f.read(),
+#                 maintype="text",
+#                 subtype="csv",
+#                 # filename="deals.csv"
+#                 filename="latest_deals.csv"
+#             )
+
+#     try:
+#         with smtplib.SMTP_SSL("smtp.gmail.com", 465) as smtp:
+#             smtp.login(from_addr, os.getenv("EMAIL_PASSWORD"))
+#             smtp.send_message(msg)
+
+#         print("📧 Summary email sent successfully.")
+
+#     except Exception as e:
+#         print("❌ Failed to send summary email:", e)
+
+def send_summary_email(matched_posts):
     from_addr = os.getenv("EMAIL_ADDRESS")
     to_addr = os.getenv("EMAIL_ADDRESS")
-    subject = "📦 Daily PC Deals CSV"
-    body = "Attached is your daily deals.csv export."
+
+    subject = "💰 PC Deals Summary"
+    lines = []
+
+    highlighted_posts = []
+
+    def add_post_list(posts):
+        for p in posts:
+            lines.append(
+                f"- {p.get('title', '')} {p.get('price', '')}\n"
+                f"  {p.get('url', '')}"
+            )
+
+    # ---------------------------------
+    # Deal sections (GREAT/GOOD/OK)
+    # ---------------------------------
+    for part, posts in matched_posts.items():
+
+        great = [p for p in posts if p.get("deal_tier") == "GREAT"]
+        good  = [p for p in posts if p.get("deal_tier") == "GOOD"]
+        ok    = [p for p in posts if p.get("deal_tier") == "OK"]
+
+        if great or good or ok:
+
+            lines.append(f"\n=== {part} ===")
+
+            if great:
+                lines.append("\n🔥 GREAT DEALS")
+                add_post_list(great)
+
+            if good:
+                lines.append("\n🟢 GOOD DEALS")
+                add_post_list(good)
+
+            if ok:
+                lines.append("\n🟡 OK DEALS")
+                add_post_list(ok)
+
+        # collect highlighted posts that do NOT already
+        # have a deal tier
+        highlighted_posts.extend(
+            p for p in posts
+            if p.get("highlight") == "YES"
+            and not p.get("deal_tier")
+        )
+
+    # ---------------------------------
+    # Highlight section
+    # ---------------------------------
+    if highlighted_posts:
+
+        lines.append("\n=== OTHER TARGET MODEL DEALS ===")
+
+        for p in highlighted_posts:
+            lines.append(
+                f"- [{p.get('part', 'Unknown')}] "
+                f"{p.get('title', '')} "
+                f"{p.get('price', '')}\n"
+                f"  {p.get('url', '')}"
+            )
+
+    body = "\n".join(lines).strip()
+
+    if not body:
+        body = "No deals found this run."
 
     msg = EmailMessage()
     msg["From"] = from_addr
@@ -67,79 +281,109 @@ def send_csv_email():
     msg["Subject"] = subject
     msg.set_content(body)
 
-    with open("deals.csv", "rb") as f:
-        file_data = f.read()
-        file_name = "deals.csv"
-    
-    msg.add_attachment(file_data, maintype="text", subtype="csv", filename=file_name)
+    if os.path.exists("latest_deals.csv"):
+        with open("latest_deals.csv", "rb") as f:
+            msg.add_attachment(
+                f.read(),
+                maintype="text",
+                subtype="csv",
+                filename="latest_deals.csv"
+            )
 
     try:
         with smtplib.SMTP_SSL("smtp.gmail.com", 465) as smtp:
             smtp.login(from_addr, os.getenv("EMAIL_PASSWORD"))
             smtp.send_message(msg)
-        print("📧 CSV email sent successfully.")
+
+        print("📧 Summary email sent successfully.")
+
     except Exception as e:
-        print("❌ Failed to send CSV email:", e)
-
-
-#######################################
-
-# helper function to extract price from title using regex
-
-def extract_price(title):
-    # Find the first pattern like $999.99 or $999
-    match = re.search(r"\$\d+(?:\.\d{1,2})?", title)
-    return match.group(0) if match else ""
+        print("❌ Failed to send summary email:", e)
 
 #######################################
+# CSV export
+#######################################
 
-# buildapcsales uses a flair system to categorize by part type or expired.. reference with .link_flair_text
-# hardwareswap uses a flair system to categorize by SELLING, BUYING, TRADING, or CLOSED
+# def export_to_csv_append(matched_posts, filename="deals.csv"):
+#     file_exists = os.path.isfile(filename)
+#     fieldnames = ["highlight", "deal_tier", "part", "created", "price", "title", "url", "subreddit", "flair"]
 
-EXCLUDED_FLAIRS = ["closed", "trading", "buying", "expired :table_flip:", "phone", "watch", "home"]
+#     with open(filename, mode='a', newline='', encoding='utf-8') as csvfile:
+#         writer = csv.DictWriter(csvfile, fieldnames=fieldnames)
 
-# substring matches for part matching/sorting
-PART_KEYWORDS = {
-    "GPU": ["gpu", "4070", "4080", "7800", "7900", "9070", "5080", "5070", "3080", "3090"],
-    "CPU": ["cpu", "7800x3d", "7700x", "7950x3d", "7900x3d", "14700k", "14900K", "14600K"],
-    "SSD": ["ssd","nvme", "sn850", "990", "980", "p5", "rocket 4"],
-    "Motherboard": ["mobo", "motherboard", "mb", "am5", "x670", "b650", "b650e", "z790", "atx", "tomahawk"],
-    "RAM": ["ram", "ddr5", "ddr4", "32gb", "64gb"],
-    "Case Fan": ["case fan", "120mm", "140mm", "pwm"],
-    "CPU Cooler": ["cooler", "cpu fan", "noctua", "liquid", "aio", "air", "peerless"],
-    "HDD": ["nas", "hdd", "ironwolf", "hard drive", "wd red", "red plus", "red pro"],
-    "Monitor": ["4k"]
-}
+#         if not file_exists:
+#             writer.writeheader()
 
-KEYWORD_TO_PART = {}
+#         for part, posts in matched_posts.items():
+#             for post in posts:
+#                 row = {"part": part}
+#                 row.update(post)
+#                 writer.writerow(row)
 
-for part, keywords in PART_KEYWORDS.items():
-    for kw in keywords:
-        KEYWORD_TO_PART[kw.lower()] = part
+#######################################
+# CSV export (HISTORY + LATEST)
+#######################################
 
-# convert to something like: 
-# {
-#   "4070": "GPU",
-#   "4080": "GPU",
-#   "cpu": "CPU",
-#   ...
-# }
+def export_to_csv(matched_posts):
+    history_file = "deals_history.csv"
+    latest_file = "latest_deals.csv"
 
-# substring matches for target models for highlight flag (and email?)
-TARGET_MODELS = [
-    "7800x3d", "7900xt", "9070", "990 pro", "980 pro", "sn850x", "4080 super", "5070", "14600k", "peerless", "nh-d15", "tomahawk"
-]
+    fieldnames = [
+        "highlight", "deal_tier", "part",
+        "created", "price", "title", "url",
+        "subreddit", "flair"
+    ]
 
-###########################################
+    # -----------------------------
+    # 1. APPEND TO HISTORY
+    # -----------------------------
+    history_exists = os.path.isfile(history_file)
 
-# use .subreddit() to target specific subreddits
-# .new() to get the newest posts limited to 30 posts (rbuildapcsales was averaging 20 per day max)
+    with open(history_file, mode='a', newline='', encoding='utf-8') as f:
+        writer = csv.DictWriter(f, fieldnames=fieldnames)
+
+        if not history_exists:
+            writer.writeheader()
+
+        for part, posts in matched_posts.items():
+            for post in posts:
+                row = {"part": part}
+                row.update(post)
+                writer.writerow(row)
+
+    # -----------------------------
+    # 2. OVERWRITE LATEST
+    # -----------------------------
+    with open(latest_file, mode='w', newline='', encoding='utf-8') as f:
+        writer = csv.DictWriter(f, fieldnames=fieldnames)
+        writer.writeheader()
+
+        for part, posts in matched_posts.items():
+            for post in posts:
+                row = {"part": part}
+                row.update(post)
+                writer.writerow(row)
+
+#######################################
+# Scraper
+#######################################
 
 def run_scraper():
 
-    seen_ids = load_seen_ids() #initialize seen_ids from file for depulication
+    total_seen = 0
+    total_skipped_old = 0
+    total_skipped_flair = 0
+    total_skipped_no_match = 0
+    total_processed = 0
+    total_errors = 0
 
-    #populate matching deals
+    seen_ids = load_seen_ids()
+
+    one_month_ago = (
+        datetime.now(timezone.utc)
+        - timedelta(days=30)
+    )
+
     MATCHED_POSTS = {
         "Case Fan": [],
         "CPU": [],
@@ -149,123 +393,162 @@ def run_scraper():
         "Monitor": [],
         "Motherboard": [],
         "RAM": [],
-        "SSD": []
+        "SSD": [],
+        "Bundle": []
     }
 
-    try:
-        for sub in ["buildapcsales", "hardwareswap", "techdeals", "pcdeals"]:
+    for sub in ["buildapcsales", "techdeals", "pcdeals"]:
+
+        try:
             for post in reddit.subreddit(sub).new(limit=50):
 
-                flair = (post.link_flair_text or "").lower()
-                title = (post.title or "").lower()
-                # convert created_utc to a datetime object and format it
-                created_time = datetime.fromtimestamp(post.created_utc, tz=timezone.utc)
-                formatted_time = created_time.strftime("%Y-%m-%d %H:%M:%S UTC") 
-                one_month_ago = datetime.now(timezone.utc) - timedelta(days=30)
+                try:
+                    total_seen += 1
 
-                ################
+                    flair = (post.link_flair_text or "").lower()
+                    title = (post.title or "").lower()
 
-                #filter out seen posts
-                if post.id in seen_ids:
-                    continue  # Skip already processed posts
+                    created_time = datetime.fromtimestamp(
+                        post.created_utc,
+                        tz=timezone.utc
+                    )
 
-                # #skip posts older than 1 month
-                if created_time < one_month_ago:
+                    formatted_time = created_time.strftime(
+                        "%Y-%m-%d %H:%M:%S UTC"
+                    )
+
+                    ####################
+                    # Filters
+                    ####################
+
+                    if post.id in seen_ids:
+                        continue
+
+                    if created_time < one_month_ago:
+                        total_skipped_old += 1
+                        continue
+
+                    if any(
+                        substring in flair
+                        for substring in EXCLUDED_FLAIRS
+                    ):
+                        total_skipped_flair += 1
+                        continue
+
+                    ####################
+                    # Category detection
+                    ####################
+
+                    matched_parts = set()
+
+                    # for kw, part in KEYWORD_TO_PART.items():
+                    #     if kw in title:
+                    #         matched_parts.add(part)
+
+                    for kw, part in KEYWORD_TO_PART.items():
+                        if re.search(rf"\b{re.escape(kw)}\b", title):
+                            matched_parts.add(part)
+
+                    if not matched_parts:
+                        total_skipped_no_match += 1
+                        continue
+
+                    is_bundle = len(matched_parts) > 1
+
+                    category = (
+                        "Bundle"
+                        if is_bundle
+                        else list(matched_parts)[0]
+                    )
+
+                    ####################
+                    # Highlight logic
+                    ####################
+
+                    is_target = any(
+                        target in title
+                        for target in TARGET_MODELS
+                    )
+
+                    ####################
+                    # Deal logic
+                    ####################
+
+                    deal_tier = evaluate_price(
+                        title,
+                        TARGET_MODELS
+                    )
+
+                    ####################
+                    # Append
+                    ####################
+
+                    MATCHED_POSTS[category].append({
+                        "part": category,
+                        "title": post.title,
+                        "url": post.url,
+                        "subreddit": sub,
+                        "flair": post.link_flair_text,
+                        "created": formatted_time,
+                        "highlight": "YES" if is_target else "",
+                        "deal_tier": deal_tier,
+                        "price": extract_price(post.title)
+                    })
+
+                    seen_ids.add(post.id) # add to seen_ids only after successful post
+
+                    total_processed += 1
+
+                except Exception as e:
+                    total_errors += 1
+                    print(
+                        f"⚠️ Skipping post "
+                        f"{getattr(post, 'id', 'unknown')}: {e}"
+                    )
+                    traceback.print_exc()
                     continue
-            
-                # #loop through EXCLUDED_FLAIRS and compare element as potential substring in current flair string 
-                # #filter out if matching excluded flair
-                if any(substring in flair for substring in EXCLUDED_FLAIRS): 
-                    continue 
 
-                ##################
-
-                # Mark this post as seen
-                seen_ids.add(post.id)
-
-                #match post title to part type
-
-                matched = False
-                for kw, part in KEYWORD_TO_PART.items():
-                    if kw in title:
-
-                        # Check if post is in your target list
-                        is_target = any(target in title for target in TARGET_MODELS)
-                        
-                        # If it is, send an email notification
-                        if is_target:
-                            post_url = post.url
-                            post_title = post.title
-                            email_subject = "🎯 Highlighted Deal Alert"
-                            email_body = f"{post_title}\n{post_url}"
-                            send_email(email_subject, email_body, os.getenv("EMAIL_ADDRESS"))  # or any email address you want
-
-                        MATCHED_POSTS[part].append({
-                            "title": post.title,
-                            "url": post.url,
-                            "subreddit": sub,
-                            "flair": post.link_flair_text,
-                            "created": formatted_time,
-                            "highlight": "YES" if is_target else "",
-                            "price": extract_price(post.title)
-                        })
-
-                        matched = True
-                        break  # If you only want one part match per post
-
-                if not matched:
-                    pass  # Optional: track uncategorized posts
-
-
-                # print(f"[{sub}] {post.link_flair_text}") #for filter by flair testing
-                # print(f"[{sub}] {formatted_time} {post.title} {post.url}")
-
-    except Exception as e:
-        print("❌ Reddit connection failed:")
-        print(e)
-
-    # print(MATCHED_POSTS)
-
-    def export_to_csv_append(matched_posts, filename="deals.csv"):
-        file_exists = os.path.isfile(filename)
-        fieldnames = ["highlight", "part", "created", "price", "title", "url", "subreddit", "flair"]
-
-        with open(filename, mode='a', newline='', encoding='utf-8') as csvfile:
-            writer = csv.DictWriter(csvfile, fieldnames=fieldnames)
-            # Write header only if file didn't exist before
-            if not file_exists:
-                writer.writeheader()
-
-            for part, posts in matched_posts.items():
-                for post in posts:
-                    row = {"part": part}
-                    row.update(post)
-                    # row.pop("flair", None)
-                    writer.writerow(row)
-
+        except Exception as e:
+            print(f"❌ Failed to read subreddit {sub}: {e}")
+            traceback.print_exc()
+            continue
 
     # After your scraping logic finishes
-    export_to_csv_append(MATCHED_POSTS)
+    # export_to_csv_append(MATCHED_POSTS)
+    export_to_csv(MATCHED_POSTS)
 
     #Save all seen_ids to file
     save_seen_ids(seen_ids)
 
-##########################################
+    print("\n📊 SCRAPER SUMMARY")
+    print(f"Total posts seen: {total_seen}")
+    print(f"Skipped (too old): {total_skipped_old}")
+    print(f"Skipped (flair): {total_skipped_flair}")
+    print(f"Skipped (no category match): {total_skipped_no_match}")
+    print(f"Processed (passed filters): {total_processed}")
+    print(f"Errors: {total_errors}\n")
 
-# Main loop to run the scraper every 30 minutes
+    # Send consolidated email
+    send_summary_email(MATCHED_POSTS)
 
-run_count=0 #track runs and send csv to email 1 time per day
+#######################################
+# Main loop
+#######################################
+
+# run the scraper every 30 minutes
+
+# run_count=0 #track runs and send csv to email 1 time per day
 
 while True:
     print("🔁 Running scraper at", datetime.now())
 
     try:
         run_scraper()
-        run_count += 1
+        # run_count += 1
 
-        if run_count >= 48:  # ~24 hours if running every 30 minutes
-            send_csv_email()
-            run_count = 0
+        # if run_count >= 48:  # ~24 hours if running every 30 minutes
+            # send_csv_email()
+            # run_count = 0
 
     except Exception as e:
         print("❌ Unhandled error in run_scraper:")
@@ -275,4 +558,3 @@ while True:
 
     print("✅ Done. Sleeping for 30 minutes.\n")
     time.sleep(30 * 60) # Sleep for 30 minutes
-

@@ -1,2 +1,4 @@
 praw
 python-dotenv
+pandas
+flask

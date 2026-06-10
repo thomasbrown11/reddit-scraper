@@ -1,69 +1,140 @@
-# Reddit PC Deals Scraper
+# Reddit PC Deals Tracker
 
-A Python script that scrapes recent PC hardware deals from multiple subreddits, filters and categorizes them by part type, highlights targeted models, extracts price info, and sends email alerts for important deals. It saves all deal data to a CSV file and keeps track of processed posts to avoid duplicates.
+A full-stack Python system that scrapes PC hardware deals from Reddit, classifies and scores them by category and value tier, persists historical data, and exposes both a web dashboard and email alerting system for high-signal deals.
+
+---
+
+## Overview
+
+This project continuously monitors PC hardware deal subreddits, extracts structured deal information from unstructured posts, and transforms them into a searchable dataset with filtering, sorting, and alerting capabilities.
+
+It is designed as a lightweight deal intelligence pipeline:
+
+- **Ingestion:** Reddit API scraping
+- **Processing:** classification, price extraction, deduplication
+- **Storage:** append-only CSV history
+- **Presentation:** Flask-based dashboard + email summaries
 
 ---
 
 ## Features
+### Data Collection
+- Scrapes posts from:
+	- buildapcsales
+	- hardwareswap
+	- techdeals
+	- pcdeals
 
-- Scrapes posts from subreddits: `buildapcsales`, `hardwareswap`, `techdeals`, and `pcdeals`.
-- Filters posts by flair and keywords to categorize hardware parts (GPU, CPU, SSD, etc.).
-- Extracts price from post titles when available.
-- Highlights and emails notifications for specific targeted models.
-- Saves matched deals in an append-only CSV file. CSV sent to email once daily. 
-- Avoids duplicate processing by tracking seen post IDs.
-- Runs continuously every 30 minutes with error handling.
+- Prevents duplicate processing via post ID tracking
+- Runs continuously on a scheduled interval (default: 30 minutes)
+
+### Deal Processing
+- Extracts price data from unstructured titles
+- Classifies deals into hardware categories:
+	- GPU, CPU, RAM, SSD, Motherboard, Monitor, Bundle, etc.
+- Applies deal tiering system:
+	- GREAT / GOOD / OK
+- Supports targeted model highlighting
+
+### Storage
+- Append-only CSV-based historical dataset
+- Enables offline analysis and trend tracking
+
+### Interfaces
+- ### Web Dashboard (Flask)
+	- Sort by price or creation date
+	- Filter by category, tier, and keyword search
+	- Color-coded deal tiers for quick scanning
+- ### Email Alerts
+	- Sends periodic summaries of matched/high-signal deals
+	- Includes direct links to listings
 
 ---
 
-## Requirements
+## Tech Stack
+- Python 3.7+
+- Flask (web dashboard)
+- Pandas (data processing & filtering)
+- PRAW (Reddit API client)
+- python-dotenv (environment config)
 
-- Python 3.7 or higher
-- Reddit API credentials (client ID, secret, username, password, user agent... save to a local `.env` file in the same directory):
+---
 
-  ```env
-  CLIENT_ID=your_reddit_client_id
-  CLIENT_SECRET=your_reddit_client_secret
-  USERNAME=your_reddit_username
-  PASSWORD=your_reddit_password
-  USER_AGENT=your_user_agent_string
-  EMAIL_ADDRESS=your_gmail_address@gmail.com
-  EMAIL_PASSWORD=your_gmail_app_password
+## Configuration
 
+Create an .env file in the project root:
+```env
+CLIENT_ID=your_reddit_client_id
+CLIENT_SECRET=your_reddit_client_secret
+USERNAME=your_reddit_username
+PASSWORD=your_reddit_password
+USER_AGENT=your_user_agent_string
 
-- Gmail account with "App Password" enabled for email notifications
-- Libraries:
-  - `praw`
-  - `python-dotenv`
+EMAIL_ADDRESS=your_gmail_address@gmail.com
+EMAIL_PASSWORD=your_gmail_app_password
+```
+**Gmail requires an App Password for SMTP authentication.**
 
 ---
 
 ## Installation
+```bash
+git clone <repo-url>
+cd reddit-pc-deals-tracker
 
-1. Clone the repository or copy the script files to your local machine.
+python -m venv venv
+source venv/bin/activate  # macOS/Linux
+venv\Scripts\activate     # Windows
 
-2. Create and activate a Python virtual environment (optional but recommended):
+pip install -r requirements.txt
+```
+---
 
-   ```bash
-   python3 -m venv venv
-   source venv/bin/activate  # macOS/Linux
-   venv\Scripts\activate     # Windows
+## Running the System
 
-3. Install dependencies: 
+### Scraper + Pipeline
+```bash
+python scraper.py
+```
+Runs continuously, collecting and processing deals every 30 minutes.
 
-    pip install -r requirements.txt
+### Web Dashboard
+```bash
+python app.py
+```
+Then visit:
+```text
+http://localhost:5000
+```
+---
 
-## CSV Output
+## Data Schema
 
-All matching deals are saved to `deals.csv` with the following fields:
+Each deal is stored with:
 
-- **`highlight`** – `YES` if it matches a target model
-- **`part`** – hardware category (GPU, CPU, etc.)
-- **`created`** – UTC timestamp of the post
-- **`price`** – extracted price from the title (if available)
-- **`title`** – full Reddit post title
-- **`url`** – direct link to the Reddit post
-- **`subreddit`** – which subreddit the post came from
-- **`flair`** – the Reddit flair tag on the post
+- **highlight** – whether it matches target models
+- **part** – hardware category (GPU, CPU, etc.)
+- **deal_tier** – GREAT / GOOD / OK
+- **created** – UTC timestamp
+- **price** – extracted price (if available)
+- **title** – original post title
+- **url** – direct link
+- **subreddit** – source subreddit
+- **flair** – Reddit flair
+---
 
-This allows you to browse past deals offline or filter for additional patterns later.
+## Requirements
+```txt
+praw
+python-dotenv
+pandas
+flask
+```
+---
+
+## Future Improvements
+Migration from CSV → SQLite or DuckDB for query flexibility
+SQL-like filtering and sorting in the web UI
+Improved deal scoring model (replacing static tiers)
+Reduced email frequency via event-based alerting
+Optional real-time notifications (Discord / push)

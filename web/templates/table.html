@@ -1,0 +1,158 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>PC Deals Dashboard</title>
+
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 20px;
+        }
+
+        h2 {
+            margin-bottom: 20px;
+        }
+
+        .filters {
+            margin-bottom: 20px;
+        }
+
+        .filters form {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 10px;
+            align-items: center;
+        }
+
+        table {
+            border-collapse: collapse;
+            width: 100%;
+        }
+
+        th,
+        td {
+            border: 1px solid #ddd;
+            padding: 8px;
+            text-align: left;
+        }
+
+        th {
+            background: #f4f4f4;
+        }
+
+        tr:hover {
+            background: #f8f8f8;
+        }
+
+        .GREAT {
+            background: #ffd6d6;
+        }
+
+        .GOOD {
+            background: #d4f8d4;
+        }
+
+        .OK {
+            background: #fff4cc;
+        }
+
+        a {
+            text-decoration: none;
+        }
+
+        input,
+        select,
+        button {
+            padding: 5px;
+        }
+    </style>
+</head>
+
+<body>
+
+<h2>💰 PC Deals Dashboard</h2>
+
+<div class="filters">
+    <form method="GET">
+
+        <label>
+            Tier:
+            <select name="tier">
+                <option value="">All</option>
+                <option value="GREAT" {% if request.args.get('tier') == 'GREAT' %}selected{% endif %}>GREAT</option>
+                <option value="GOOD" {% if request.args.get('tier') == 'GOOD' %}selected{% endif %}>GOOD</option>
+                <option value="OK" {% if request.args.get('tier') == 'OK' %}selected{% endif %}>OK</option>
+            </select>
+        </label>
+
+        <label>
+            Part:
+            <select name="category">
+                <option value="">All Parts</option>
+                <option value="CPU" {% if request.args.get('category') == 'CPU' %}selected{% endif %}>CPU</option>
+                <option value="GPU" {% if request.args.get('category') == 'GPU' %}selected{% endif %}>GPU</option>
+                <option value="Motherboard" {% if request.args.get('category') == 'Motherboard' %}selected{% endif %}>Motherboard</option>
+                <option value="RAM" {% if request.args.get('category') == 'RAM' %}selected{% endif %}>RAM</option>
+                <option value="SSD" {% if request.args.get('category') == 'SSD' %}selected{% endif %}>SSD</option>
+                <option value="Monitor" {% if request.args.get('category') == 'Monitor' %}selected{% endif %}>Monitor</option>
+                <option value="Bundle" {% if request.args.get('category') == 'Bundle' %}selected{% endif %}>Bundle</option>
+            </select>
+        </label>
+
+        <label>
+            Search:
+            <input
+                type="text"
+                name="search"
+                placeholder="keyword"
+                value="{{ request.args.get('search', '') }}"
+            >
+        </label>
+
+        <label>
+            Sort:
+            <select name="sort">
+                <option value="created_desc" {% if request.args.get('sort', 'created_desc') == 'created_desc' %}selected{% endif %}>Newest First</option>
+                <option value="created_asc" {% if request.args.get('sort') == 'created_asc' %}selected{% endif %}>Oldest First</option>
+                <option value="price_desc" {% if request.args.get('sort') == 'price_desc' %}selected{% endif %}>Highest Price</option>
+                <option value="price_asc" {% if request.args.get('sort') == 'price_asc' %}selected{% endif %}>Lowest Price</option>
+            </select>
+        </label>
+
+        <button type="submit">Filter</button>
+
+        <a href="/">
+            <button type="button">Reset</button>
+        </a>
+
+    </form>
+</div>
+
+<table>
+    <thead>
+        <tr>
+            {% for col in columns %}
+                <th>{{ col }}</th>
+            {% endfor %}
+        </tr>
+    </thead>
+
+    <tbody>
+        {% for row in tables %}
+            <tr class="{{ row.deal_tier }}">
+                {% for col in columns %}
+                    <td>
+                        {% if col == "url" %}
+                            <a href="{{ row[col] }}" target="_blank">link</a>
+                        {% else %}
+                            {{ row[col] }}
+                        {% endif %}
+                    </td>
+                {% endfor %}
+            </tr>
+        {% endfor %}
+    </tbody>
+</table>
+
+</body>
+</html>

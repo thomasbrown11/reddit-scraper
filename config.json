@@ -1,0 +1,34 @@
+{
+  "excluded_flairs": [
+    "closed",
+    "trading",
+    "buying",
+    "expired :table_flip:",
+    "phone",
+    "watch",
+    "home"
+  ],
+
+  "part_keywords": {
+    "GPU": ["gpu", "4070", "4080", "7800 xt", "7900 xt", "9070", "9070 xt", "5080", "5070", "3080", "3090", "9060"],
+    "CPU": ["cpu", "7800x3d", "7700x", "7950x3d", "7900x3d", "14700k", "14900K", "14600K"],
+    "SSD": ["ssd", "nvme", "sn850", "990", "980", "p5", "rocket 4"],
+    "Motherboard": ["mobo", "motherboard", "mb", "am5", "x670", "b650", "b650e", "z790", "atx", "tomahawk"],
+    "RAM": ["ram", "ddr5", "32gb", "16gb"],
+    "Case Fan": ["case fan", "120mm", "140mm", "pwm"],
+    "CPU Cooler": ["cooler", "cpu fan", "noctua", "liquid", "aio", "air", "peerless"],
+    "HDD": ["nas", "hdd", "ironwolf", "hard drive", "wd red", "red plus", "red pro"],
+    "Monitor": ["4k", "144hz", "240hz", "g-sync", "freesync", "ultrawide", "curved", "oled", "m34wq", "34gp83a-b", "ips"]
+  },
+
+  "target_models": {
+    "7800x3d": { "base_price": 380 },
+    "9800x3d": { "base_price": 450 },
+    "7900xt": { "base_price": 750 },
+    "9070 xt": { "base_price": 650 },
+    "9060 xt": { "base_price": 475 },
+    "peerless": { "base_price": 35 },
+    "tomahawk": { "base_price": 200 },
+    "ddr5": { "base_price": 400 }
+  }
+}
