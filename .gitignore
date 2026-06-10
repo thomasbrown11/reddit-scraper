@@ -3,3 +3,4 @@ latest_deals.csv
 deals_history.csv
 seen_ids.txt
 __pycache__/
+venv/
