@@ -11,7 +11,7 @@ from email.message import EmailMessage # for email message creation
 import json # for config values
 import traceback
 
-from database import initialize_database, insert_deal #import from manually created database.py
+from database import initialize_database, insert_deal, cleanup_old_deals #import from manually created database.py
 
 initialize_database() #cread db file if it doesn't exist
 
@@ -398,18 +398,6 @@ def run_scraper():
                     # Append
                     ####################
 
-                    # MATCHED_POSTS[category].append({
-                    #     "part": category,
-                    #     "title": post.title,
-                    #     "url": post.url,
-                    #     "subreddit": sub,
-                    #     "flair": post.link_flair_text,
-                    #     "created": formatted_time,
-                    #     "highlight": "YES" if is_target else "",
-                    #     "deal_tier": deal_tier,
-                    #     "price": extract_price(post.title)
-                    # })
-
                     deal = {
                         "source": "reddit",
                         "source_id": post.id,
@@ -467,8 +455,25 @@ def run_scraper():
     print(f"Processed (passed filters): {total_processed}")
     print(f"Errors: {total_errors}\n")
 
-    # Send consolidated email
-    send_summary_email(MATCHED_POSTS)
+    ####################
+    # Send email
+    ####################
+    try:
+        send_summary_email(MATCHED_POSTS)
+        print("📧 Summary email sent")
+    except Exception as e:
+        print("⚠️ Email failed:", e)
+        traceback.print_exc()
+
+    ####################
+    # DB cleanup
+    ####################
+    try:
+        cleanup_old_deals()
+        print("🧹 Cleaned up old deals (>30 days)")
+    except Exception as e:
+        print("⚠️ Cleanup failed:", e)
+        traceback.print_exc()
 
 #######################################
 # Main loop

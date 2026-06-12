@@ -96,3 +96,19 @@ def insert_deal(deal):
     conn.close()
 
     return inserted
+
+###########################
+# delete stale post helper
+###########################
+def cleanup_old_deals():
+
+    conn = get_connection()
+    cursor = conn.cursor()
+
+    conn.execute("""
+        DELETE FROM deals
+        WHERE created_utc < datetime('now', '-30 days')
+    """)
+
+    conn.commit()
+    conn.close()
