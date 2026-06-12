@@ -1,88 +1,148 @@
 from flask import Flask, render_template, request
+import sqlite3
 import pandas as pd
 import os
 
 app = Flask(__name__)
 
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
-CSV_PATH = os.path.join(BASE_DIR, "..", "deals_history.csv")
-
-
-def load_data():
-    if not os.path.exists(CSV_PATH):
-        return pd.DataFrame()
-
-    df = pd.read_csv(CSV_PATH)
-
-    if df.empty:
-        return pd.DataFrame()
-
-    # Normalize column names
-    df.columns = [c.strip().lower() for c in df.columns]
-
-    return df
+DB_PATH = os.path.join(BASE_DIR, "..", "deals.db")
 
 
 @app.route("/")
 def index():
-    df = load_data()
-
-    if df.empty:
-        return render_template("table.html", tables=[], columns=[])
 
     tier = request.args.get("tier", "").upper()
     category = request.args.get("category", "")
-    search = request.args.get("search", "").lower()
+    search = request.args.get("search", "")
     sort = request.args.get("sort", "created_desc")
 
+    # ---------------------------------------------------
+    # Base query
+    # ---------------------------------------------------
+
+    query = """
+        SELECT *
+        FROM deals
+        WHERE 1=1
+    """
+
+    params = []
+
+    # ---------------------------------------------------
     # Filters
-    if "deal_tier" in df.columns and tier:
-        df = df[df["deal_tier"] == tier]
+    # ---------------------------------------------------
 
-    if "part" in df.columns and category:
-        df = df[df["part"] == category]
+    if tier:
+        query += " AND deal_tier = ?"
+        params.append(tier)
 
-    if "title" in df.columns and search:
-        df = df[df["title"].str.lower().str.contains(search, na=False)]
+    if category:
+        query += " AND part = ?"
+        params.append(category)
 
-    # Convert created column for proper sorting
-    if "created" in df.columns:
-        df["created"] = pd.to_datetime(df["created"], errors="coerce")
+    if search:
+        query += " AND lower(title) LIKE ?"
+        params.append(f"%{search.lower()}%")
 
-    # Create numeric price helper column
-    if "price" in df.columns:
-        df["price_num"] = (
-            df["price"]
-            .astype(str)
-            .str.replace("$", "", regex=False)
-            .str.replace(",", "", regex=False)
-        )
-
-        df["price_num"] = pd.to_numeric(
-            df["price_num"],
-            errors="coerce"
-        )
-
+    # ---------------------------------------------------
     # Sorting
+    # ---------------------------------------------------
+
     if sort == "created_desc":
-        df = df.sort_values("created", ascending=False)
+
+        query += """
+            ORDER BY created_utc DESC
+        """
 
     elif sort == "created_asc":
-        df = df.sort_values("created", ascending=True)
+
+        query += """
+            ORDER BY created_utc ASC
+        """
 
     elif sort == "price_desc":
-        df = df.sort_values("price_num", ascending=False)
+
+        query += """
+            ORDER BY
+                CAST(
+                    REPLACE(
+                        REPLACE(price, '$', ''),
+                        ',', ''
+                    ) AS REAL
+                ) DESC
+        """
 
     elif sort == "price_asc":
-        df = df.sort_values("price_num", ascending=True)
 
-    # Hide helper columns from display
-    display_df = df.drop(columns=["price_num"], errors="ignore")
+        query += """
+            ORDER BY
+                CAST(
+                    REPLACE(
+                        REPLACE(price, '$', ''),
+                        ',', ''
+                    ) AS REAL
+                ) ASC
+        """
+
+    elif sort == "deal_tier":
+
+        query += """
+            ORDER BY
+                CASE deal_tier
+                    WHEN 'GREAT' THEN 3
+                    WHEN 'GOOD'  THEN 2
+                    WHEN 'OK'    THEN 1
+                    ELSE 0
+                END DESC,
+                created_utc DESC
+        """
+
+    elif sort == "highlight":
+
+        query += """
+            ORDER BY
+                CASE
+                    WHEN highlight = 'YES' THEN 1
+                    ELSE 0
+                END DESC,
+                created_utc DESC
+        """
+
+    else:
+
+        query += """
+            ORDER BY created_utc DESC
+        """
+
+    # ---------------------------------------------------
+    # Execute SQL
+    # ---------------------------------------------------
+
+    conn = sqlite3.connect(DB_PATH)
+
+    print(query)
+    print(params)
+
+    df = pd.read_sql_query(
+        query,
+        conn,
+        params=params
+    )
+
+    conn.close()
+
+    if df.empty:
+        return render_template(
+            "table.html",
+            tables=[],
+            columns=[]
+        )
 
     return render_template(
         "table.html",
-        tables=display_df.to_dict(orient="records"),
-        columns=display_df.columns.tolist()
+        tables=df.to_dict(orient="records"),
+        columns=df.columns.tolist()
     )
 
 

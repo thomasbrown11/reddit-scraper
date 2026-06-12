@@ -4,6 +4,7 @@
     <title>PC Deals Dashboard</title>
 
     <style>
+
         body {
             font-family: Arial, sans-serif;
             margin: 20px;
@@ -38,6 +39,8 @@
 
         th {
             background: #f4f4f4;
+            position: sticky;
+            top: 0;
         }
 
         tr:hover {
@@ -65,6 +68,19 @@
         button {
             padding: 5px;
         }
+
+        .table-wrapper {
+            overflow-x: auto;
+        }
+
+        .sort-links {
+            margin-bottom: 15px;
+        }
+
+        .sort-links a {
+            margin-right: 15px;
+        }
+
     </style>
 </head>
 
@@ -79,23 +95,48 @@
             Tier:
             <select name="tier">
                 <option value="">All</option>
-                <option value="GREAT" {% if request.args.get('tier') == 'GREAT' %}selected{% endif %}>GREAT</option>
-                <option value="GOOD" {% if request.args.get('tier') == 'GOOD' %}selected{% endif %}>GOOD</option>
-                <option value="OK" {% if request.args.get('tier') == 'OK' %}selected{% endif %}>OK</option>
+
+                <option value="GREAT"
+                    {% if request.args.get('tier') == 'GREAT' %}
+                        selected
+                    {% endif %}
+                >
+                    GREAT
+                </option>
+
+                <option value="GOOD"
+                    {% if request.args.get('tier') == 'GOOD' %}
+                        selected
+                    {% endif %}
+                >
+                    GOOD
+                </option>
+
+                <option value="OK"
+                    {% if request.args.get('tier') == 'OK' %}
+                        selected
+                    {% endif %}
+                >
+                    OK
+                </option>
+
             </select>
         </label>
 
         <label>
             Part:
             <select name="category">
+
                 <option value="">All Parts</option>
-                <option value="CPU" {% if request.args.get('category') == 'CPU' %}selected{% endif %}>CPU</option>
-                <option value="GPU" {% if request.args.get('category') == 'GPU' %}selected{% endif %}>GPU</option>
-                <option value="Motherboard" {% if request.args.get('category') == 'Motherboard' %}selected{% endif %}>Motherboard</option>
-                <option value="RAM" {% if request.args.get('category') == 'RAM' %}selected{% endif %}>RAM</option>
-                <option value="SSD" {% if request.args.get('category') == 'SSD' %}selected{% endif %}>SSD</option>
-                <option value="Monitor" {% if request.args.get('category') == 'Monitor' %}selected{% endif %}>Monitor</option>
-                <option value="Bundle" {% if request.args.get('category') == 'Bundle' %}selected{% endif %}>Bundle</option>
+
+                <option value="CPU">CPU</option>
+                <option value="GPU">GPU</option>
+                <option value="Motherboard">Motherboard</option>
+                <option value="RAM">RAM</option>
+                <option value="SSD">SSD</option>
+                <option value="Monitor">Monitor</option>
+                <option value="Bundle">Bundle</option>
+
             </select>
         </label>
 
@@ -104,7 +145,6 @@
             <input
                 type="text"
                 name="search"
-                placeholder="keyword"
                 value="{{ request.args.get('search', '') }}"
             >
         </label>
@@ -112,47 +152,150 @@
         <label>
             Sort:
             <select name="sort">
-                <option value="created_desc" {% if request.args.get('sort', 'created_desc') == 'created_desc' %}selected{% endif %}>Newest First</option>
-                <option value="created_asc" {% if request.args.get('sort') == 'created_asc' %}selected{% endif %}>Oldest First</option>
-                <option value="price_desc" {% if request.args.get('sort') == 'price_desc' %}selected{% endif %}>Highest Price</option>
-                <option value="price_asc" {% if request.args.get('sort') == 'price_asc' %}selected{% endif %}>Lowest Price</option>
+
+                <option value="created_desc"
+                    {% if request.args.get('sort', 'created_desc') == 'created_desc' %}
+                        selected
+                    {% endif %}
+                >
+                    Newest First
+                </option>
+
+                <option value="created_asc"
+                    {% if request.args.get('sort') == 'created_asc' %}
+                        selected
+                    {% endif %}
+                >
+                    Oldest First
+                </option>
+
+                <option value="price_desc"
+                    {% if request.args.get('sort') == 'price_desc' %}
+                        selected
+                    {% endif %}
+                >
+                    Highest Price
+                </option>
+
+                <option value="price_asc"
+                    {% if request.args.get('sort') == 'price_asc' %}
+                        selected
+                    {% endif %}
+                >
+                    Lowest Price
+                </option>
+
+                <option value="deal_tier"
+                    {% if request.args.get('sort') == 'deal_tier' %}
+                        selected
+                    {% endif %}
+                >
+                    Best Deals
+                </option>
+
+                <option value="highlight"
+                    {% if request.args.get('sort') == 'highlight' %}
+                        selected
+                    {% endif %}
+                >
+                    Highlights First
+                </option>
+
             </select>
         </label>
 
-        <button type="submit">Filter</button>
+        <button type="submit">
+            Apply
+        </button>
 
         <a href="/">
-            <button type="button">Reset</button>
+            <button type="button">
+                Reset
+            </button>
         </a>
 
     </form>
 </div>
 
+<hr>
+
+<div class="sort-links">
+
+    Quick Sort:
+
+    <a href="?sort=created_desc">Newest</a>
+
+    <a href="?sort=deal_tier">
+        Best Deals
+    </a>
+
+    <a href="?sort=highlight">
+        Highlights
+    </a>
+
+    <a href="?sort=price_desc">
+        Highest $
+    </a>
+
+    <a href="?sort=price_asc">
+        Lowest $
+    </a>
+
+</div>
+
+<div class="table-wrapper">
+
 <table>
+
     <thead>
         <tr>
+
             {% for col in columns %}
-                <th>{{ col }}</th>
+
+                <th>
+                    {{ col }}
+                </th>
+
             {% endfor %}
+
         </tr>
     </thead>
 
     <tbody>
+
         {% for row in tables %}
+
             <tr class="{{ row.deal_tier }}">
+
                 {% for col in columns %}
+
                     <td>
+
                         {% if col == "url" %}
-                            <a href="{{ row[col] }}" target="_blank">link</a>
+
+                            <a href="{{ row[col] }}" target="_blank">
+                                link
+                            </a>
+
                         {% else %}
+
                             {{ row[col] }}
+
                         {% endif %}
+
                     </td>
+
                 {% endfor %}
+
             </tr>
+
         {% endfor %}
+
     </tbody>
+
 </table>
+
+</div>
 
 </body>
 </html>
