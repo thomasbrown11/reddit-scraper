@@ -168,7 +168,7 @@ Each deal is stored with:
 - **highlight** – whether it matches target models
 - **part** – hardware category (GPU, CPU, etc.)
 - **deal_tier** – GREAT / GOOD / OK
-- **created** – UTC timestamp
+- **created_utc** – Human readble UTC timestamp
 - **price** – extracted price (if available)
 - **title** – original post title
 - **url** – direct link

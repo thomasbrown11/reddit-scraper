@@ -13,3 +13,4 @@ __pycache__/
 latest_deals.csv
 deals_history.csv
 seen_ids.txt
+deals.db
