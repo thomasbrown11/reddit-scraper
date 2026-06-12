@@ -10,15 +10,15 @@
   ],
 
   "part_keywords": {
-    "GPU": ["gpu", "4070", "4080", "7800 xt", "7900 xt", "9070", "9070 xt", "5080", "5070", "3080", "3090", "9060"],
+    "GPU": ["gpu", "4070", "4080", "7800 xt", "7900 xt", "7800xt", "7900xt", "9070", "9070 xt", "9070xt", "5080", "5070", "3080", "3090", "9060"],
     "CPU": ["cpu", "7800x3d", "7700x", "7950x3d", "7900x3d", "14700k", "14900K", "14600K"],
     "SSD": ["ssd", "nvme", "sn850", "990", "980", "p5", "rocket 4"],
     "Motherboard": ["mobo", "motherboard", "mb", "am5", "x670", "b650", "b650e", "z790", "atx", "tomahawk"],
     "RAM": ["ram", "ddr5", "32gb", "16gb"],
     "Case Fan": ["case fan", "120mm", "140mm", "pwm"],
     "CPU Cooler": ["cooler", "cpu fan", "noctua", "liquid", "aio", "air", "peerless"],
-    "HDD": ["nas", "hdd", "ironwolf", "hard drive", "wd red", "red plus", "red pro"],
-    "Monitor": ["4k", "144hz", "240hz", "g-sync", "freesync", "ultrawide", "curved", "oled", "m34wq", "34gp83a-b", "ips"]
+    "HDD": ["nas", "hdd", "ssd", "m.2", "sata", "ironwolf", "hard drive", "wd red", "red plus", "red pro"],
+    "Monitor": ["monitor", "1440p", "1440 p", "4k", "144hz", "165hz", "240hz", "ultrawide", "ultra-wide", "ultra wide", "ips", "oled", "mini LED", "WQHD", "QHD", "curved", "m34wq", "34gp83a-b", "34\"", "34 inch", "34-inch", "38\"", "38 inch", "38-inch"]
   },
 
   "target_models": {
@@ -29,6 +29,11 @@
     "9060 xt": { "base_price": 475 },
     "peerless": { "base_price": 35 },
     "tomahawk": { "base_price": 200 },
-    "ddr5": { "base_price": 400 }
+    "ddr5": { "base_price": 400 },
+    "34\"": { "base_price": 400 },
+    "34 inch": { "base_price": 400 },
+    "34-inch": { "base_price": 400 },
+    "ultrawide": { "base_price": 400 },
+    "WQHD": { "base_price": 400 }
   }
 }

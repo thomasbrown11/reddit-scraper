@@ -11,6 +11,10 @@ from email.message import EmailMessage # for email message creation
 import json # for config values
 import traceback
 
+from database import initialize_database, insert_deal #import from manually created database.py
+
+initialize_database() #cread db file if it doesn't exist
+
 load_dotenv()  # Load environment variables from .env file
 
 # praw is an api tool to interact with the reddit api. praw.Reddit() passes in dev creds for api usage
@@ -139,73 +143,6 @@ TARGET_MODELS = config["target_models"]
 # Email (summary + attachment)
 #######################################
 
-# def send_summary_email(matched_posts):
-#     from_addr = os.getenv("EMAIL_ADDRESS")
-#     to_addr = os.getenv("EMAIL_ADDRESS")
-
-#     subject = "💰 PC Deals Summary"
-#     lines = []
-
-#     def add_tier_block(label, emoji, posts):
-#         if not posts:
-#             return
-#         lines.append(f"\n{emoji} {label}")
-#         for p in posts:
-#             lines.append(
-#                 f"- {p.get('title', '')} {p.get('price', '')}\n  {p.get('url', '')}"
-#             )
-
-#     for part, posts in matched_posts.items():
-
-#         # group by tier
-#         great = [p for p in posts if p.get("deal_tier") == "GREAT"]
-#         good  = [p for p in posts if p.get("deal_tier") == "GOOD"]
-#         ok    = [p for p in posts if p.get("deal_tier") == "OK"]
-
-#         # skip empty categories entirely
-#         if not (great or good or ok):
-#             continue
-
-#         lines.append(f"\n=== {part} ===")
-
-#         add_tier_block("GREAT DEALS", "🔥", great)
-#         add_tier_block("GOOD DEALS", "🟢", good)
-#         add_tier_block("OK DEALS", "🟡", ok)
-
-#     body = "\n".join(lines).strip()
-
-#     if not body:
-#         body = "No deals found this run."
-
-#     msg = EmailMessage()
-#     msg["From"] = from_addr
-#     msg["To"] = to_addr
-#     msg["Subject"] = subject
-#     msg.set_content(body)
-
-#     # attach CSV
-#     # if os.path.exists("deals.csv"):
-#     #     with open("deals.csv", "rb") as f:
-#     if os.path.exists("latest_deals.csv"):
-#         with open("latest_deals.csv", "rb") as f:
-#             msg.add_attachment(
-#                 f.read(),
-#                 maintype="text",
-#                 subtype="csv",
-#                 # filename="deals.csv"
-#                 filename="latest_deals.csv"
-#             )
-
-#     try:
-#         with smtplib.SMTP_SSL("smtp.gmail.com", 465) as smtp:
-#             smtp.login(from_addr, os.getenv("EMAIL_PASSWORD"))
-#             smtp.send_message(msg)
-
-#         print("📧 Summary email sent successfully.")
-
-#     except Exception as e:
-#         print("❌ Failed to send summary email:", e)
-
 def send_summary_email(matched_posts):
     from_addr = os.getenv("EMAIL_ADDRESS")
     to_addr = os.getenv("EMAIL_ADDRESS")
@@ -301,26 +238,6 @@ def send_summary_email(matched_posts):
         print("❌ Failed to send summary email:", e)
 
 #######################################
-# CSV export
-#######################################
-
-# def export_to_csv_append(matched_posts, filename="deals.csv"):
-#     file_exists = os.path.isfile(filename)
-#     fieldnames = ["highlight", "deal_tier", "part", "created", "price", "title", "url", "subreddit", "flair"]
-
-#     with open(filename, mode='a', newline='', encoding='utf-8') as csvfile:
-#         writer = csv.DictWriter(csvfile, fieldnames=fieldnames)
-
-#         if not file_exists:
-#             writer.writeheader()
-
-#         for part, posts in matched_posts.items():
-#             for post in posts:
-#                 row = {"part": part}
-#                 row.update(post)
-#                 writer.writerow(row)
-
-#######################################
 # CSV export (HISTORY + LATEST)
 #######################################
 
@@ -329,8 +246,8 @@ def export_to_csv(matched_posts):
     latest_file = "latest_deals.csv"
 
     fieldnames = [
-        "highlight", "deal_tier", "part",
-        "created", "price", "title", "url",
+        "source", "source_id", "highlight", "deal_tier", "part",
+        "created_utc", "price", "title", "url",
         "subreddit", "flair"
     ]
 
@@ -347,8 +264,8 @@ def export_to_csv(matched_posts):
 
         for part, posts in matched_posts.items():
             for post in posts:
-                row = {"part": part}
-                row.update(post)
+                row = {"part": part} # may be redundant? 
+                row.update(post) # may be redundant? 
                 writer.writerow(row)
 
     # -----------------------------
@@ -374,6 +291,7 @@ def run_scraper():
     total_skipped_old = 0
     total_skipped_flair = 0
     total_skipped_no_match = 0
+    total_skipped_already_seen = 0 # new 
     total_processed = 0
     total_errors = 0
 
@@ -414,7 +332,7 @@ def run_scraper():
                     )
 
                     formatted_time = created_time.strftime(
-                        "%Y-%m-%d %H:%M:%S UTC"
+                        "%Y-%m-%d %H:%M:%S"
                     )
 
                     ####################
@@ -422,6 +340,7 @@ def run_scraper():
                     ####################
 
                     if post.id in seen_ids:
+                        total_skipped_already_seen += 1
                         continue
 
                     if created_time < one_month_ago:
@@ -440,10 +359,6 @@ def run_scraper():
                     ####################
 
                     matched_parts = set()
-
-                    # for kw, part in KEYWORD_TO_PART.items():
-                    #     if kw in title:
-                    #         matched_parts.add(part)
 
                     for kw, part in KEYWORD_TO_PART.items():
                         if re.search(rf"\b{re.escape(kw)}\b", title):
@@ -483,20 +398,43 @@ def run_scraper():
                     # Append
                     ####################
 
-                    MATCHED_POSTS[category].append({
+                    # MATCHED_POSTS[category].append({
+                    #     "part": category,
+                    #     "title": post.title,
+                    #     "url": post.url,
+                    #     "subreddit": sub,
+                    #     "flair": post.link_flair_text,
+                    #     "created": formatted_time,
+                    #     "highlight": "YES" if is_target else "",
+                    #     "deal_tier": deal_tier,
+                    #     "price": extract_price(post.title)
+                    # })
+
+                    deal = {
+                        "source": "reddit",
+                        "source_id": post.id,
+
                         "part": category,
                         "title": post.title,
                         "url": post.url,
                         "subreddit": sub,
                         "flair": post.link_flair_text,
-                        "created": formatted_time,
+                        "created_utc": formatted_time,
                         "highlight": "YES" if is_target else "",
                         "deal_tier": deal_tier,
                         "price": extract_price(post.title)
-                    })
+                    }
 
-                    seen_ids.add(post.id) # add to seen_ids only after successful post
+                    # Add to MATCHED_POSTS for csv exports/email
+                    MATCHED_POSTS[category].append(deal)
 
+                    # insert into deals.db deals table
+                    insert_deal(deal)
+
+                    # add to seen_ids only after successful post
+                    seen_ids.add(post.id) 
+
+                    # increment count if successful post
                     total_processed += 1
 
                 except Exception as e:
@@ -524,6 +462,7 @@ def run_scraper():
     print(f"Total posts seen: {total_seen}")
     print(f"Skipped (too old): {total_skipped_old}")
     print(f"Skipped (flair): {total_skipped_flair}")
+    print(f"Skipped (Already Seen): {total_skipped_already_seen}")
     print(f"Skipped (no category match): {total_skipped_no_match}")
     print(f"Processed (passed filters): {total_processed}")
     print(f"Errors: {total_errors}\n")
@@ -535,20 +474,11 @@ def run_scraper():
 # Main loop
 #######################################
 
-# run the scraper every 30 minutes
-
-# run_count=0 #track runs and send csv to email 1 time per day
-
 while True:
     print("🔁 Running scraper at", datetime.now())
 
     try:
         run_scraper()
-        # run_count += 1
-
-        # if run_count >= 48:  # ~24 hours if running every 30 minutes
-            # send_csv_email()
-            # run_count = 0
 
     except Exception as e:
         print("❌ Unhandled error in run_scraper:")
