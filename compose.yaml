@@ -29,17 +29,17 @@ services:
     restart: unless-stopped
 
   # web sql query builder/viewer at port 8001
-datasette:
-  build:
-    context: .
-    dockerfile: datasette.Dockerfile
+  datasette:
+    build:
+      context: .
+      dockerfile: datasette.Dockerfile
 
-  container_name: reddit-datasette
+    container_name: reddit-datasette
 
-  volumes:
-    - ./data:/app/data
+    volumes:
+      - ./data:/app/data
 
-  ports:
-    - "8001:8001"
+    ports:
+      - "8001:8001"
 
-  restart: unless-stopped
+    restart: unless-stopped
