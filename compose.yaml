@@ -30,11 +30,11 @@ services:
 
   # web sql query builder/viewer at port 8001
 datasette:
-  image: datasetteproject/datasette
-  platform: linux/arm64
-  container_name: reddit-datasette
+  build:
+    context: .
+    dockerfile: datasette.Dockerfile
 
-  command: datasette /app/data/deals.db -h 0.0.0.0 -p 8001
+  container_name: reddit-datasette
 
   volumes:
     - ./data:/app/data
