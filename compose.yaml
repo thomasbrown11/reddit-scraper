@@ -1,0 +1,44 @@
+services:
+  # main scraper
+  scraper:
+    build: .
+    container_name: reddit-scraper
+
+    command: python scraper.py
+
+    volumes:
+      - ./data:/app/data
+
+    restart: unless-stopped
+
+  # web dashboard view at port 5000
+  web:
+    build: .
+    container_name: reddit-dashboard
+
+    command: python web/app.py
+
+    volumes:
+      - ./data:/app/data
+
+    ports:
+      - "5000:5000"
+
+    restart: unless-stopped
+
+  # web sql query builder/viewer at port 8001
+  datasette:
+    # this is a pre-built image so datasette doesn't need to be in requirements.txt
+    image: datasetteproject/datasette
+
+    container_name: reddit-datasette
+
+    command: datasette /data/deals.db -h 0.0.0.0
+
+    volumes:
+      - ./data:/data
+
+    ports:
+      - "8001:8001"
+
+    restart: unless-stopped

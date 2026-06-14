@@ -30,14 +30,14 @@ reddit = praw.Reddit(
 # Seen IDs helper functions 
 #######################################
 
-def load_seen_ids(filepath="seen_ids.txt"):
+def load_seen_ids(filepath="/app/data/seen_ids.txt"):
     try:
         with open(filepath, "r") as f:
             return set(line.strip() for line in f if line.strip())
     except FileNotFoundError:
         return set()
 
-def save_seen_ids(seen_ids, filepath="seen_ids.txt"):
+def save_seen_ids(seen_ids, filepath="/app/data/seen_ids.txt"):
     with open(filepath, "w") as f:
         for post_id in seen_ids:
             f.write(post_id + "\n")
@@ -218,7 +218,7 @@ def send_summary_email(matched_posts):
     msg["Subject"] = subject
     msg.set_content(body)
 
-    if os.path.exists("latest_deals.csv"):
+    if os.path.exists("/app/data/latest_deals.csv"):
         with open("latest_deals.csv", "rb") as f:
             msg.add_attachment(
                 f.read(),
@@ -242,8 +242,8 @@ def send_summary_email(matched_posts):
 #######################################
 
 def export_to_csv(matched_posts):
-    history_file = "deals_history.csv"
-    latest_file = "latest_deals.csv"
+    history_file = "/app/data/deals_history.csv"
+    latest_file = "/app/data/latest_deals.csv"
 
     fieldnames = [
         "source", "source_id", "highlight", "deal_tier", "part",

@@ -3,11 +3,14 @@ import sqlite3
 import pandas as pd
 import os
 
+from database import initialize_database
+
+initialize_database()
+
 app = Flask(__name__)
 
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
-DB_PATH = os.path.join(BASE_DIR, "..", "deals.db")
-
+DB_PATH = os.path.join(BASE_DIR, "..", "/app/data/deals.db")
 
 @app.route("/")
 def index():

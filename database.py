@@ -1,6 +1,6 @@
 import sqlite3 
 
-DB_FILE = "deals.db"
+DB_FILE = "/app/data/deals.db"
 
 def get_connection():
         # create deals.db sql lite db file if it doesn't exist
