@@ -31,7 +31,8 @@ services:
   # web sql query builder/viewer at port 8001
   datasette:
     # this is a pre-built image so datasette doesn't need to be in requirements.txt
-    image: datasetteproject/datasette
+    image: ghcr.io/datasette/datasette
+    platform: linux/arm64
 
     container_name: reddit-datasette
 
