@@ -29,19 +29,17 @@ services:
     restart: unless-stopped
 
   # web sql query builder/viewer at port 8001
-  datasette:
-    # this is a pre-built image so datasette doesn't need to be in requirements.txt
-    image: datasetteproject/datasette
-    platform: linux/arm64
+datasette:
+  image: datasetteproject/datasette
+  platform: linux/arm64
+  container_name: reddit-datasette
 
-    container_name: reddit-datasette
+  command: datasette /app/data/deals.db -h 0.0.0.0 -p 8001
 
-    command: datasette /app/data/deals.db -h 0.0.0.0 -p 8001
+  volumes:
+    - ./data:/app/data
 
-    volumes:
-      - ./data:/app/data
+  ports:
+    - "8001:8001"
 
-    ports:
-      - "8001:8001"
-
-    restart: unless-stopped
+  restart: unless-stopped
