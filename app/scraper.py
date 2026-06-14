@@ -11,7 +11,7 @@ from email.message import EmailMessage # for email message creation
 import json # for config values
 import traceback
 
-from app.database import initialize_database, insert_deal, cleanup_old_deals #import from manually created database.py
+from database import initialize_database, insert_deal, cleanup_old_deals #import from manually created database.py
 
 initialize_database() #cread db file if it doesn't exist
 
