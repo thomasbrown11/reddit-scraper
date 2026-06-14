@@ -218,8 +218,10 @@ def send_summary_email(matched_posts):
     msg["Subject"] = subject
     msg.set_content(body)
 
-    if os.path.exists("/app/data/latest_deals.csv"):
-        with open("latest_deals.csv", "rb") as f:
+    LATEST_CSV = "/app/data/latest_deals.csv"
+
+    if os.path.exists(LATEST_CSV):
+        with open(LATEST_CSV, "rb") as f:
             msg.add_attachment(
                 f.read(),
                 maintype="text",
