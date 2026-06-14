@@ -360,29 +360,29 @@ def run_scraper():
                     # Category detection
                     ####################
 
-                    # matched_parts = set()
-
-                    # for kw, part in KEYWORD_TO_PART.items():
-                    #     if re.search(rf"\b{re.escape(kw)}\b", title):
-                    #         matched_parts.add(part)
-
-                    # if not matched_parts:
-                    #     total_skipped_no_match += 1
-                    #     continue
-
-                    title_norm = re.sub(r'[^a-z0-9]+', '', title.lower())
-
                     matched_parts = set()
 
                     for kw, part in KEYWORD_TO_PART.items():
-                        kw_norm = re.sub(r'[^a-z0-9]+', '', kw.lower())
-
-                        if kw_norm in title_norm:
+                        if re.search(rf"\b{re.escape(kw)}\b", title):
                             matched_parts.add(part)
 
                     if not matched_parts:
                         total_skipped_no_match += 1
                         continue
+
+                    # title_norm = re.sub(r'[^a-z0-9]+', '', title.lower())
+
+                    # matched_parts = set()
+
+                    # for kw, part in KEYWORD_TO_PART.items():
+                    #     kw_norm = re.sub(r'[^a-z0-9]+', '', kw.lower())
+
+                    #     if kw_norm in title_norm:
+                    #         matched_parts.add(part)
+
+                    # if not matched_parts:
+                    #     total_skipped_no_match += 1
+                    #     continue
 
                     is_bundle = len(matched_parts) > 1
 
