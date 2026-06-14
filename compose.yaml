@@ -2,9 +2,11 @@ services:
   # main scraper
   scraper:
     build: .
+    env_file:
+      - .env
     container_name: reddit-scraper
 
-    command: python scraper.py
+    command: python app/scraper.py
 
     volumes:
       - ./data:/app/data
@@ -16,7 +18,7 @@ services:
     build: .
     container_name: reddit-dashboard
 
-    command: python web/app.py
+    command: python app/web/app.py
 
     volumes:
       - ./data:/app/data
@@ -33,10 +35,10 @@ services:
 
     container_name: reddit-datasette
 
-    command: datasette /data/deals.db -h 0.0.0.0
+    command: datasette /app/data/deals.db -h 0.0.0.0
 
     volumes:
-      - ./data:/data
+      - ./data:/app/data
 
     ports:
       - "8001:8001"

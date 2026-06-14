@@ -3,7 +3,7 @@ import sqlite3
 import pandas as pd
 import os
 
-from database import initialize_database
+from app.database import initialize_database
 
 initialize_database()
 
