@@ -8,6 +8,8 @@ import re # for regex matching
 import smtplib # for sending emails
 from email.message import EmailMessage # for email message creation
 
+from zoneinfo import ZoneInfo
+
 import json # for config values
 import traceback
 
@@ -474,9 +476,30 @@ def run_scraper():
     ####################
     # Send email
     ####################
+    # try:
+    #     send_summary_email(MATCHED_POSTS)
+    #     print("📧 Summary email sent")
+    # except Exception as e:
+    #     print("⚠️ Email failed:", e)
+    #     traceback.print_exc()
+
+    ####################
+    # Send email (gated)
+    ####################
     try:
-        send_summary_email(MATCHED_POSTS)
-        print("📧 Summary email sent")
+        now = datetime.now(ZoneInfo("America/New_York"))
+
+        within_hours = 8 <= now.hour < 23
+        has_new_deals = total_processed > 0
+
+        if within_hours and has_new_deals:
+            send_summary_email(MATCHED_POSTS)
+            print("📧 Summary email sent")
+        else:
+            if not within_hours:
+                print("📭 Email skipped (outside 8am–11pm window)")
+            if not has_new_deals:
+                print("📭 Email skipped (no new deals)")
     except Exception as e:
         print("⚠️ Email failed:", e)
         traceback.print_exc()
