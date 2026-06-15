@@ -7,13 +7,17 @@ import time # automate scraping
 import re # for regex matching
 import smtplib # for sending emails
 from email.message import EmailMessage # for email message creation
-
-from zoneinfo import ZoneInfo
-
+from pathlib import Path # dynamic reference for data file creation 
+from zoneinfo import ZoneInfo # support time zone sleep rules
 import json # for config values
 import traceback
 
 from database import initialize_database, insert_deal, cleanup_old_deals #import from manually created database.py
+
+# Go up two directories from current file and then into a 'data' folder
+DATA_DIR = Path(__file__).parent.parent / "data"
+# make data directory if it doesn't exist, don't crash if it exists. make parent directories as well if missing (not relevant)
+DATA_DIR.mkdir(parents=True, exist_ok=True)
 
 initialize_database() #cread db file if it doesn't exist
 
@@ -32,14 +36,28 @@ reddit = praw.Reddit(
 # Seen IDs helper functions 
 #######################################
 
-def load_seen_ids(filepath="/app/data/seen_ids.txt"):
+# def load_seen_ids(filepath="/app/data/seen_ids.txt"):
+#     try:
+#         with open(filepath, "r") as f:
+#             return set(line.strip() for line in f if line.strip())
+#     except FileNotFoundError:
+#         return set()
+
+SEEN_IDS_FILE = DATA_DIR / "seen_ids.txt"
+    
+def load_seen_ids(filepath=SEEN_IDS_FILE):
     try:
         with open(filepath, "r") as f:
             return set(line.strip() for line in f if line.strip())
     except FileNotFoundError:
         return set()
 
-def save_seen_ids(seen_ids, filepath="/app/data/seen_ids.txt"):
+# def save_seen_ids(seen_ids, filepath="/app/data/seen_ids.txt"):
+#     with open(filepath, "w") as f:
+#         for post_id in seen_ids:
+#             f.write(post_id + "\n")
+
+def save_seen_ids(seen_ids, filepath=SEEN_IDS_FILE):
     with open(filepath, "w") as f:
         for post_id in seen_ids:
             f.write(post_id + "\n")
@@ -121,7 +139,11 @@ def evaluate_price(title, models_config):
 #######################################
 
 # Load config.json (must be in project root)
-with open("config.json", "r", encoding="utf-8") as f:
+
+CONFIG_FILE = DATA_DIR.parent / "config.json"
+
+with open(CONFIG_FILE, "r", encoding="utf-8") as f:
+#with open("config.json", "r", encoding="utf-8") as f:
     config = json.load(f)
 
 # hard filter for unwanted posts 
@@ -220,7 +242,8 @@ def send_summary_email(matched_posts):
     msg["Subject"] = subject
     msg.set_content(body)
 
-    LATEST_CSV = "/app/data/latest_deals.csv"
+    # LATEST_CSV = "/app/data/latest_deals.csv"
+    LATEST_CSV = DATA_DIR / "latest_deals.csv"
 
     if os.path.exists(LATEST_CSV):
         with open(LATEST_CSV, "rb") as f:
@@ -246,8 +269,12 @@ def send_summary_email(matched_posts):
 #######################################
 
 def export_to_csv(matched_posts):
-    history_file = "/app/data/deals_history.csv"
-    latest_file = "/app/data/latest_deals.csv"
+
+    # history_file = "/app/data/deals_history.csv"
+    history_file = DATA_DIR / "deals_history.csv"
+
+    # latest_file = "/app/data/latest_deals.csv"
+    latest_file = DATA_DIR / "latest_deals.csv"
 
     fieldnames = [
         "source", "source_id", "highlight", "deal_tier", "part",
@@ -258,7 +285,10 @@ def export_to_csv(matched_posts):
     # -----------------------------
     # 1. APPEND TO HISTORY
     # -----------------------------
-    history_exists = os.path.isfile(history_file)
+
+    # history_exists = os.path.isfile(history_file)
+
+    history_exists = history_file.exists()
 
     with open(history_file, mode='a', newline='', encoding='utf-8') as f:
         writer = csv.DictWriter(f, fieldnames=fieldnames)

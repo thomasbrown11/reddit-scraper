@@ -1,6 +1,13 @@
+from pathlib import Path
 import sqlite3 
 
-DB_FILE = "/app/data/deals.db"
+# Go up two directories from current file and then into a 'data' folder
+DATA_DIR = Path(__file__).parent.parent / "data"
+# make data directory if it doesn't exist, don't crash if it exists. make parent directories as well if missing (not relevant)
+DATA_DIR.mkdir(parents=True, exist_ok=True)
+
+# DB_FILE = "/app/data/deals.db"
+DB_FILE = DATA_DIR / "deals.db"
 
 def get_connection():
         # create deals.db sql lite db file if it doesn't exist
