@@ -435,12 +435,16 @@ def run_scraper():
     total_processed = 0
     total_errors = 0
 
-    # used to discard stale posts.. should maybe move to 2 weeks instead
-    one_month_ago = (
+    # create UTC cutoff timestamp
+    # posts older than this data will be discarded
+    # cut off is 2 weeks
+    cutoff_date = (
         datetime.now(timezone.utc)
-        - timedelta(days=30)
+        - timedelta(days=14)
     )
 
+    # init category based post storage
+    # purely for email structuring convenience
     MATCHED_POSTS = {
         "Case Fan": [],
         "CPU": [],
@@ -454,25 +458,33 @@ def run_scraper():
         "Bundle": []
     }
 
+    # import all subreddits to scrape from config
     SUBREDDITS = config.get("subreddits", [])
 
-    # for sub in ["buildapcsales", "techdeals", "pcdeals"]:
+    # loop subreddits
     for sub in SUBREDDITS:
 
         try:
+            # loop newest 50 posts in each subreddit
             for post in reddit.subreddit(sub).new(limit=50):
 
                 try:
+                    # increment for debug tracking
                     total_seen += 1
 
                     flair = (post.link_flair_text or "").lower()
                     title = (post.title or "").lower()
 
+                    # convert Reddit Unix timestamp into timezone-aware UTC datetime
                     created_time = datetime.fromtimestamp(
+                        # reddit returns a unix timestamp (like 1718640000)
                         post.created_utc,
                         tz=timezone.utc
                     )
 
+                    # create string version of time for storage/display
+                    # from: 2026-06-17 15:00:00+00:00
+                    # to: "2026-06-17 15:00:00"
                     formatted_time = created_time.strftime(
                         "%Y-%m-%d %H:%M:%S"
                     )
@@ -486,11 +498,13 @@ def run_scraper():
                     if already_seen("reddit", post.id):
                         total_skipped_already_seen += 1
                         continue
-
-                    if created_time < one_month_ago:
+                    
+                    # skip posts older than cut off (currently 2 weeks)
+                    if created_time < cutoff_date:
                         total_skipped_old += 1
                         continue
-
+                    
+                    # skip posts with excluded flairs
                     if any(
                         substring in flair
                         for substring in EXCLUDED_FLAIRS
