@@ -10,9 +10,13 @@ from email.message import EmailMessage # for email message creation
 from pathlib import Path # dynamic reference for data file creation 
 from zoneinfo import ZoneInfo # support time zone sleep rules
 import json # for config values
-import traceback
+import traceback # detailed stack trace error handling readouts
+#import from manually created database.py
+from database import initialize_database, insert_deal, cleanup_old_deals 
 
-from database import initialize_database, insert_deal, cleanup_old_deals #import from manually created database.py
+#######################################
+# Database init
+#######################################
 
 # Go up two directories from current file and then into a 'data' folder
 DATA_DIR = Path(__file__).parent.parent / "data"
@@ -21,7 +25,15 @@ DATA_DIR.mkdir(parents=True, exist_ok=True)
 
 initialize_database() #cread db file if it doesn't exist
 
+#######################################
+# env init 
+#######################################
+
 load_dotenv()  # Load environment variables from .env file
+
+#######################################
+# Reddit API Client init 
+#######################################
 
 # praw is an api tool to interact with the reddit api. praw.Reddit() passes in dev creds for api usage
 reddit = praw.Reddit(
@@ -44,21 +56,28 @@ reddit = praw.Reddit(
 #         return set()
 
 SEEN_IDS_FILE = DATA_DIR / "seen_ids.txt"
-    
+
+# open seen_ids.txt and return set (hashset for quick lookup) of seen values  
 def load_seen_ids(filepath=SEEN_IDS_FILE):
     try:
+        # open in read mode
         with open(filepath, "r") as f:
+            # return set of non-empty lines from file after stripping leading space/newline chars 
             return set(line.strip() for line in f if line.strip())
     except FileNotFoundError:
-        return set()
+        # # return empty set if no file is found
+        return set() 
 
 # def save_seen_ids(seen_ids, filepath="/app/data/seen_ids.txt"):
 #     with open(filepath, "w") as f:
 #         for post_id in seen_ids:
 #             f.write(post_id + "\n")
 
+# save new seen_ids set as new lines to seen_ids.txt by replacing file
 def save_seen_ids(seen_ids, filepath=SEEN_IDS_FILE):
+    # open in write mode
     with open(filepath, "w") as f:
+        # loop seen_ids, and add newline char to each line. Overwrite file (no append)
         for post_id in seen_ids:
             f.write(post_id + "\n")
 
@@ -66,27 +85,36 @@ def save_seen_ids(seen_ids, filepath=SEEN_IDS_FILE):
 # Price extraction
 #######################################
 
+# string to floating point integer conversion 
 def price_to_float(price_str):
-    """
-    Converts '$1,199.99' -> 1199.99
-    Returns None if conversion fails.
-    """
     try:
         return float(
+            # strip $ and , chars. convert from string to float 
             price_str.replace("$", "").replace(",", "")
         )
     except (ValueError, AttributeError):
-        return None
+        # None rather than 0 for conversion failure testing
+        return None 
 
-
+# extracs largest dollar amount from title, returns as string
 def extract_price(title):
+    """
+    Extracts largest dollar amount from title.
+
+    Returns:
+        str: price like "$1,299.99"
+        "" : no price found (Python None breaks email logic in later functions)
+    """
+    # use regex module, findall price pattern matches and return as list
     prices = re.findall(r"\$\d[\d,]*(?:\.\d{1,2})?", title)
 
+    # if no prices then return empty
     if not prices:
         return ""
 
     try:
-        # use largest dollar value found in title
+        # use largest dollar value found in title, comparing as float
+        # return largest float as original string (so returns "$120.99" vs 120.99)
         return max(prices, key=price_to_float)
     except Exception:
         return ""
@@ -95,40 +123,57 @@ def extract_price(title):
 # Deal evaluation
 #######################################
 
+# return great, good, ok deal designation to insert into deal_tier per post
 def evaluate_price(title, models_config):
+
+    # convert title to all lowercase for model comparison
     title_l = title.lower()
 
+    # get price, if no price exit and return empty string
     price_str = extract_price(title)
     if not price_str:
         return ""
 
+    # convert price to float for comparison to base price
+    # if price can't be converted return empty string
     price = price_to_float(price_str)
     if price is None:
         return ""
 
     best_tier = ""
 
+    # loop through all target_models from config file
+    # meta references model value which is an object containing {"base_price": INT}
     for model, meta in models_config.items():
 
         if model not in title_l:
             continue
-
+        
+        # extract base price 
         base = meta.get("base_price")
 
+        # error handling for base base_price insert in config file
+        # confirm int or float value only
         if not isinstance(base, (int, float)):
             continue
-
+        
+        # this returns a percentage difference as a floating point value 
+        # if base 400, price 300, then returns .25
         try:
             discount = (base - price) / base
+        # protect against dividing by 0 (if base_price was set to 0)
         except ZeroDivisionError:
             continue
 
+        # categorize as great is 25% discount or greater
         if discount >= 0.25:
             return "GREAT"
 
+        # good deal if 10-24%
         elif discount >= 0.10:
             best_tier = "GOOD"
 
+        # ok deal is 1-95 discount
         elif discount >= 0:
             best_tier = "OK"
 
@@ -140,8 +185,10 @@ def evaluate_price(title, models_config):
 
 # Load config.json (must be in project root)
 
+# load project root/config.json
 CONFIG_FILE = DATA_DIR.parent / "config.json"
 
+# create file object f, use json modele to load json object as python object
 with open(CONFIG_FILE, "r", encoding="utf-8") as f:
 #with open("config.json", "r", encoding="utf-8") as f:
     config = json.load(f)
@@ -154,9 +201,16 @@ EXCLUDED_FLAIRS = config["excluded_flairs"]
 # object map sorts posts to cateogry based on string match 
 PART_KEYWORDS = config["part_keywords"]
 
+# convert {category: [keywords]} to {normalized keyword: category} lookup table
+# ie {'GPU' : ['4080', '4090', 9070xt']} becomes: {'4080': 'GPU', '4090: 'GPU', '9070xt' : 'GPU'}
 KEYWORD_TO_PART = {
+    # Dictionary comprehension syntax
+    # return inner keyword: category for each inner keyword
+    # to lowercase and strip whitespace for each part
     kw.lower().strip(): part
+    # first iter: part = GPU, keywords ["4080", ...]
     for part, keywords in PART_KEYWORDS.items()
+    # for each value in keywords, do expression above
     for kw in keywords
 }
 
@@ -168,49 +222,86 @@ TARGET_MODELS = config["target_models"]
 #######################################
 
 def send_summary_email(matched_posts):
+
+    # from and to both as app user email address
     from_addr = os.getenv("EMAIL_ADDRESS")
     to_addr = os.getenv("EMAIL_ADDRESS")
 
+    # email subject line
     subject = "💰 PC Deals Summary"
+
+    # init list that represents lines of the email body 
     lines = []
 
+    # init list collection of target model posts with no deals
     highlighted_posts = []
 
+    # helper. loop through built post list and append lines to email body like 
+    # each append is a single string, but with a newline so ends up appending lines like: 
+    # - 7800X3D $299 $299\n https://reddit.com/post2
+    # displays like:
+    # - 7800X3D $299 $299
+    # https://reddit.com/post2
+    # this allows each string to be seen as a single element despite having 2 lines
+    # allows for things like: body = "\n".join(lines) which inserts linebreaks between posts
     def add_post_list(posts):
         for p in posts:
             lines.append(
+                # f = formatted string. like: - RTX 5070 $499 $499\n
                 f"- {p.get('title', '')} {p.get('price', '')}\n"
+                # like: https://reddit.com/post1"
                 f"  {p.get('url', '')}"
             )
 
     # ---------------------------------
     # Deal sections (GREAT/GOOD/OK)
     # ---------------------------------
+
+    # loop over MATCHED_POSTS. One iteration per category
+    # if deals, create organized deals section with truncated post lines, append to email body 
     for part, posts in matched_posts.items():
 
+        # matched_posts passsed in like: 
+        # MATCHED_POSTS = {
+        #     "GPU": [{"title": "4070 Super $499","deal_tier": "GREAT"},{"title": "9070 XT $599","deal_tier": "GOOD"}],
+        #     "CPU": [ { "title": "7800X3D $299", ... } ]
+        # }
+        # part = category name ("GPU", "CPU", etc.)
+        # posts = list of deal dictionaries in that category
+
+        # list comprehensions of posts. Returns new sub list of the original post list with only deal_tier = x values
         great = [p for p in posts if p.get("deal_tier") == "GREAT"]
         good  = [p for p in posts if p.get("deal_tier") == "GOOD"]
         ok    = [p for p in posts if p.get("deal_tier") == "OK"]
 
+        # if at least one deal_tier value exists in category posts:
         if great or good or ok:
-
+            
+            # make cateogry header in email body
             lines.append(f"\n=== {part} ===")
 
             if great:
+                # make great header
                 lines.append("\n🔥 GREAT DEALS")
+                # append formatted post line to body 
                 add_post_list(great)
 
             if good:
+                # make good header
                 lines.append("\n🟢 GOOD DEALS")
                 add_post_list(good)
 
             if ok:
+                # make okay header
                 lines.append("\n🟡 OK DEALS")
                 add_post_list(ok)
 
-        # collect highlighted posts that do NOT already
-        # have a deal tier
+        # collect highlighted posts that do NOT already have a deal tier value
+        # using extend to make a single flat highlight post list to append to email vs
+        # using append to get a list of lists like: [[GPU hilite posts], [CPU hilite posts], ...]
         highlighted_posts.extend(
+            # list comprehension
+            # include target model posts that don't have a significant discount
             p for p in posts
             if p.get("highlight") == "YES"
             and not p.get("deal_tier")
@@ -221,8 +312,10 @@ def send_summary_email(matched_posts):
     # ---------------------------------
     if highlighted_posts:
 
+        # append generic header for non-deal posts that still match target models
         lines.append("\n=== OTHER TARGET MODEL DEALS ===")
 
+        # append formatted line to email body per highlighted post item
         for p in highlighted_posts:
             lines.append(
                 f"- [{p.get('part', 'Unknown')}] "
@@ -231,23 +324,32 @@ def send_summary_email(matched_posts):
                 f"  {p.get('url', '')}"
             )
 
+    # join all appended lines with new line seperators between
+    # remove whitespace from beginning and end of lines
     body = "\n".join(lines).strip()
 
+    # handler for no posts pertaining to target models
     if not body:
         body = "No deals found this run."
 
+    # build email message
     msg = EmailMessage()
     msg["From"] = from_addr
     msg["To"] = to_addr
     msg["Subject"] = subject
     msg.set_content(body)
 
-    # LATEST_CSV = "/app/data/latest_deals.csv"
+    # get csv file containing all pertinent new posts
+    # this includes posts with part_keywords string matches meaning no target model match
     LATEST_CSV = DATA_DIR / "latest_deals.csv"
 
     if os.path.exists(LATEST_CSV):
+        # open in Read Binary mode (raw bytes)
+        # this supports emailing which also transmits in raw bytes
         with open(LATEST_CSV, "rb") as f:
             msg.add_attachment(
+                # f is file object, must be read to get contents
+                # attach to email message
                 f.read(),
                 maintype="text",
                 subtype="csv",
@@ -255,8 +357,12 @@ def send_summary_email(matched_posts):
             )
 
     try:
+        # use built in smtp communication library
+        # reference gmail outgoing mail server at port 465 (SMTP over ssl/tls)
         with smtplib.SMTP_SSL("smtp.gmail.com", 465) as smtp:
+            # pass email address and generated gmail app pw
             smtp.login(from_addr, os.getenv("EMAIL_PASSWORD"))
+            # send message via smtp
             smtp.send_message(msg)
 
         print("📧 Summary email sent successfully.")
