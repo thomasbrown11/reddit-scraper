@@ -1,16 +1,20 @@
 from flask import Flask, render_template, request
 import sqlite3
 import pandas as pd
-import os
+import sys
+from pathlib import Path
 
-from database import initialize_database
+sys.path.append(str(Path(__file__).resolve().parent.parent))
+
+#import database init and db location from database.py
+from database import initialize_database, DB_FILE
 
 initialize_database()
 
 app = Flask(__name__)
 
-BASE_DIR = os.path.dirname(os.path.abspath(__file__))
-DB_PATH = os.path.join(BASE_DIR, "..", "/app/data/deals.db")
+# import deals.db path from database.py
+DB_PATH = DB_FILE
 
 @app.route("/")
 def index():
@@ -122,18 +126,12 @@ def index():
     # Execute SQL
     # ---------------------------------------------------
 
-    conn = sqlite3.connect(DB_PATH)
-
-    print(query)
-    print(params)
-
-    df = pd.read_sql_query(
-        query,
-        conn,
-        params=params
-    )
-
-    conn.close()
+    with sqlite3.connect(DB_PATH) as conn:
+        df = pd.read_sql_query(
+            query,
+            conn,
+            params=params
+        )
 
     if df.empty:
         return render_template(

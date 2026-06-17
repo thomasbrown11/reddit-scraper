@@ -388,57 +388,26 @@ def send_summary_email(matched_posts):
         logger.exception("❌ Failed to send summary email")
 
 #######################################
-# CSV export (HISTORY + LATEST)
+# CSV export
 #######################################
 
-def export_to_csv(matched_posts):
-
-    # comprehensive deals csv containing all collected posts
-    # now redundant with database.py 
-    # history_file = "/app/data/deals_history.csv"
-    history_file = DATA_DIR / "deals_history.csv"
+def export_to_latest_csv(matched_posts):
 
     # contains only new posts that passed part_keywords/target_model filtering on current run
     # latest_file = "/app/data/latest_deals.csv"
     latest_file = DATA_DIR / "latest_deals.csv"
 
-    # standardized csv columns for exported deals
-    # note that posts need to pass values in this order to work properly
+    # standardized csv columns and output order
     fieldnames = [
         "source", "source_id", "highlight", "deal_tier", "part",
         "created_utc", "price", "title", "url",
         "subreddit", "flair"
     ]
 
-    # redundant section. deals_history is replaced by deals.db and doesn't need to exist
-    # -----------------------------
-    # 1. APPEND TO HISTORY
-    # -----------------------------
-
-    # history_exists = os.path.isfile(history_file)
-
-    # history_exists = history_file.exists()
-
-    # with open(history_file, mode='a', newline='', encoding='utf-8') as f:
-    #     writer = csv.DictWriter(f, fieldnames=fieldnames)
-
-    #     if not history_exists:
-    #         writer.writeheader()
-
-    #     for part, posts in matched_posts.items():
-    #         for post in posts:
-    #             row = {"part": part} # may be redundant? 
-    #             row.update(post) # may be redundant? 
-    #             writer.writerow(row)
-
-    # -----------------------------
-    # 2. OVERWRITE LATEST
-    # -----------------------------
-
     # open latest_deals.csv in write mode as f
     with open(latest_file, mode='w', newline='', encoding='utf-8') as f:
         # use built in csv python module
-        # pass file object to dictionary writer with fieldnames as dictionary keys in expected order
+        # create CSV dictionary writer using file object and desired column order
         writer = csv.DictWriter(f, fieldnames=fieldnames)
 
         # write column names as first row
@@ -466,8 +435,6 @@ def run_scraper():
     total_processed = 0
     total_errors = 0
 
-    # seen_ids = load_seen_ids() # redundant
-
     # used to discard stale posts.. should maybe move to 2 weeks instead
     one_month_ago = (
         datetime.now(timezone.utc)
@@ -487,7 +454,10 @@ def run_scraper():
         "Bundle": []
     }
 
-    for sub in ["buildapcsales", "techdeals", "pcdeals"]:
+    SUBREDDITS = config.get("subreddits", [])
+
+    # for sub in ["buildapcsales", "techdeals", "pcdeals"]:
+    for sub in SUBREDDITS:
 
         try:
             for post in reddit.subreddit(sub).new(limit=50):
@@ -513,7 +483,6 @@ def run_scraper():
 
                     # early check for duplicate post
                     # table schema already handles uniqueness but this saves loop processing
-                    # if post.id in seen_ids:
                     if already_seen("reddit", post.id):
                         total_skipped_already_seen += 1
                         continue
@@ -543,20 +512,6 @@ def run_scraper():
                         total_skipped_no_match += 1
                         continue
 
-                    # title_norm = re.sub(r'[^a-z0-9]+', '', title.lower())
-
-                    # matched_parts = set()
-
-                    # for kw, part in KEYWORD_TO_PART.items():
-                    #     kw_norm = re.sub(r'[^a-z0-9]+', '', kw.lower())
-
-                    #     if kw_norm in title_norm:
-                    #         matched_parts.add(part)
-
-                    # if not matched_parts:
-                    #     total_skipped_no_match += 1
-                    #     continue
-
                     is_bundle = len(matched_parts) > 1
 
                     category = (
@@ -569,6 +524,7 @@ def run_scraper():
                     # Highlight logic
                     ####################
 
+                    # will add YES to highlight field if string match in from target models
                     is_target = any(
                         target in title
                         for target in TARGET_MODELS
@@ -602,9 +558,6 @@ def run_scraper():
                         "price": extract_price(post.title)
                     }
 
-                    # Add to MATCHED_POSTS for csv exports/email
-                    # MATCHED_POSTS[category].append(deal)
-
                     # insert into deals.db deals table
                     # inserted boolean true if success
                     inserted = insert_deal(deal)
@@ -612,55 +565,27 @@ def run_scraper():
                     if inserted:
                         # Add to MATCHED_POSTS for csv exports/email
                         MATCHED_POSTS[category].append(deal)
-
                         total_processed += 1
                     else: 
                         total_skipped_already_seen += 1
 
-                    # add to seen_ids only after successful post
-                    # seen_ids.add(post.id) # redundant
-
-                    # increment count if successful post
-                    # total_processed += 1
-
                 except Exception:
-                # except Exception as e:
                     total_errors += 1
-                    # print(
-                    #     f"⚠️ Skipping post "
-                    #     f"{getattr(post, 'id', 'unknown')}: {e}"
-                    # )
-                    # traceback.print_exc()
                     logger.exception(
                         "⚠️ Skipping post %s",
                         getattr(post, "id", "unknown")
                     )
                     continue
+
         except Exception:
-        # except Exception as e:
-            # print(f"❌ Failed to read subreddit {sub}: {e}")
-            # traceback.print_exc()
             logger.exception(
                 "❌ Failed to read subreddit %s",
                 sub
             )
             continue
 
-    # After your scraping logic finishes
-    # export_to_csv_append(MATCHED_POSTS)
-    export_to_csv(MATCHED_POSTS)
-
-    # Save all seen_ids to file
-    # save_seen_ids(seen_ids) # redundant
-
-    # print("\n📊 SCRAPER SUMMARY")
-    # print(f"Total posts seen: {total_seen}")
-    # print(f"Skipped (too old): {total_skipped_old}")
-    # print(f"Skipped (flair): {total_skipped_flair}")
-    # print(f"Skipped (Already Seen): {total_skipped_already_seen}")
-    # print(f"Skipped (no category match): {total_skipped_no_match}")
-    # print(f"Processed (passed filters): {total_processed}")
-    # print(f"Errors: {total_errors}\n")
+    # build latest_deals.csv for email attachement
+    export_to_latest_csv(MATCHED_POSTS)
 
     # detailed logger output for docker stdout
     logger.info("📊 SCRAPER SUMMARY")
@@ -675,41 +600,39 @@ def run_scraper():
     ####################
     # Send email (gated)
     ####################
+
     try:
+        # establish EST timezone 
         now = datetime.now(ZoneInfo("America/New_York"))
 
+        # email only between 8am and 11pm
         within_hours = 8 <= now.hour < 23
+
+        # confirm at least 1 post to report
         has_new_deals = total_processed > 0
 
         if within_hours and has_new_deals:
+            # send email only if new deals within working ours (night time DND)
             send_summary_email(MATCHED_POSTS)
-            # print("📧 Summary email sent")
             logger.info("📧 Summary email sent")
         else:
             if not within_hours:
-                # print("📭 Email skipped (outside 8am–11pm window)")
                 logger.info("📭 Email skipped (outside 8am–11pm window)")
             if not has_new_deals:
-                # print("📭 Email skipped (no new deals)")
                 logger.info("📭 Email skipped (no new deals)")
     except Exception:
-    # except Exception as e:
-        # print("⚠️ Email failed:", e)
-        # traceback.print_exc()
         logger.exception("⚠️ Email failed")
 
     ####################
     # DB cleanup
     ####################
+
     try:
-        cleanup_old_deals()
-        # print("🧹 Cleaned up old deals (>30 days)")
+        # delete 30+ day old posts from db
+        cleanup_old_deals() 
         logger.info("🧹 Cleaned up old deals (>30 days)")
     except Exception:
-    # except Exception as e:
         logger.exception("⚠️ Cleanup failed")
-        # print("⚠️ Cleanup failed:", e)
-        # traceback.print_exc()
 
 #######################################
 # Main loop
@@ -721,7 +644,6 @@ while True:
 
     try:
         run_scraper()
-
     except Exception: 
         logger.exception("❌ Unhandled error in run_scraper")
         logger.info("Retrying in 5 minutes")
