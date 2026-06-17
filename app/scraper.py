@@ -10,9 +10,23 @@ from email.message import EmailMessage # for email message creation
 from pathlib import Path # dynamic reference for data file creation 
 from zoneinfo import ZoneInfo # support time zone sleep rules
 import json # for config values
+import logging # use logging for docker logs
 import traceback # detailed stack trace error handling readouts
 #import from manually created database.py
-from database import initialize_database, insert_deal, cleanup_old_deals 
+from database import initialize_database, insert_deal, cleanup_old_deals, already_seen
+
+#######################################
+# logging init
+#######################################
+
+# output like 2026-06-17 10:32:04 INFO Summary email sent
+logging.basicConfig(
+    level=logging.INFO,
+    format="%(asctime)s %(levelname)s %(message)s"
+)
+
+# user with logger.info()
+logger = logging.getLogger(__name__)
 
 #######################################
 # Database init
@@ -365,10 +379,13 @@ def send_summary_email(matched_posts):
             # send message via smtp
             smtp.send_message(msg)
 
-        print("📧 Summary email sent successfully.")
+        # print("📧 Summary email sent successfully.")
+        logger.info("Summary email sent")
 
-    except Exception as e:
-        print("❌ Failed to send summary email:", e)
+    except Exception:
+    # except Exception as e:
+        # print("❌ Failed to send summary email:", e)
+        logger.exception("❌ Failed to send summary email")
 
 #######################################
 # CSV export (HISTORY + LATEST)
@@ -376,50 +393,63 @@ def send_summary_email(matched_posts):
 
 def export_to_csv(matched_posts):
 
+    # comprehensive deals csv containing all collected posts
+    # now redundant with database.py 
     # history_file = "/app/data/deals_history.csv"
     history_file = DATA_DIR / "deals_history.csv"
 
+    # contains only new posts that passed part_keywords/target_model filtering on current run
     # latest_file = "/app/data/latest_deals.csv"
     latest_file = DATA_DIR / "latest_deals.csv"
 
+    # standardized csv columns for exported deals
+    # note that posts need to pass values in this order to work properly
     fieldnames = [
         "source", "source_id", "highlight", "deal_tier", "part",
         "created_utc", "price", "title", "url",
         "subreddit", "flair"
     ]
 
+    # redundant section. deals_history is replaced by deals.db and doesn't need to exist
     # -----------------------------
     # 1. APPEND TO HISTORY
     # -----------------------------
 
     # history_exists = os.path.isfile(history_file)
 
-    history_exists = history_file.exists()
+    # history_exists = history_file.exists()
 
-    with open(history_file, mode='a', newline='', encoding='utf-8') as f:
-        writer = csv.DictWriter(f, fieldnames=fieldnames)
+    # with open(history_file, mode='a', newline='', encoding='utf-8') as f:
+    #     writer = csv.DictWriter(f, fieldnames=fieldnames)
 
-        if not history_exists:
-            writer.writeheader()
+    #     if not history_exists:
+    #         writer.writeheader()
 
-        for part, posts in matched_posts.items():
-            for post in posts:
-                row = {"part": part} # may be redundant? 
-                row.update(post) # may be redundant? 
-                writer.writerow(row)
+    #     for part, posts in matched_posts.items():
+    #         for post in posts:
+    #             row = {"part": part} # may be redundant? 
+    #             row.update(post) # may be redundant? 
+    #             writer.writerow(row)
 
     # -----------------------------
     # 2. OVERWRITE LATEST
     # -----------------------------
+
+    # open latest_deals.csv in write mode as f
     with open(latest_file, mode='w', newline='', encoding='utf-8') as f:
+        # use built in csv python module
+        # pass file object to dictionary writer with fieldnames as dictionary keys in expected order
         writer = csv.DictWriter(f, fieldnames=fieldnames)
+
+        # write column names as first row
         writer.writeheader()
 
-        for part, posts in matched_posts.items():
+        # write one row to csv per post in matched_posts
+        # _, posts on .items() is equivalent to for posts in matched_posts.values():
+        # just get each category's values (post dict list) and inner loop looops over the dicts
+        for _, posts in matched_posts.items():
             for post in posts:
-                row = {"part": part}
-                row.update(post)
-                writer.writerow(row)
+                writer.writerow(post)
 
 #######################################
 # Scraper
@@ -427,6 +457,7 @@ def export_to_csv(matched_posts):
 
 def run_scraper():
 
+    # counts for console stdout
     total_seen = 0
     total_skipped_old = 0
     total_skipped_flair = 0
@@ -435,8 +466,9 @@ def run_scraper():
     total_processed = 0
     total_errors = 0
 
-    seen_ids = load_seen_ids()
+    # seen_ids = load_seen_ids() # redundant
 
+    # used to discard stale posts.. should maybe move to 2 weeks instead
     one_month_ago = (
         datetime.now(timezone.utc)
         - timedelta(days=30)
@@ -479,7 +511,10 @@ def run_scraper():
                     # Filters
                     ####################
 
-                    if post.id in seen_ids:
+                    # early check for duplicate post
+                    # table schema already handles uniqueness but this saves loop processing
+                    # if post.id in seen_ids:
+                    if already_seen("reddit", post.id):
                         total_skipped_already_seen += 1
                         continue
 
@@ -568,56 +603,74 @@ def run_scraper():
                     }
 
                     # Add to MATCHED_POSTS for csv exports/email
-                    MATCHED_POSTS[category].append(deal)
+                    # MATCHED_POSTS[category].append(deal)
 
                     # insert into deals.db deals table
-                    insert_deal(deal)
+                    # inserted boolean true if success
+                    inserted = insert_deal(deal)
+
+                    if inserted:
+                        # Add to MATCHED_POSTS for csv exports/email
+                        MATCHED_POSTS[category].append(deal)
+
+                        total_processed += 1
+                    else: 
+                        total_skipped_already_seen += 1
 
                     # add to seen_ids only after successful post
-                    seen_ids.add(post.id) 
+                    # seen_ids.add(post.id) # redundant
 
                     # increment count if successful post
-                    total_processed += 1
+                    # total_processed += 1
 
-                except Exception as e:
+                except Exception:
+                # except Exception as e:
                     total_errors += 1
-                    print(
-                        f"⚠️ Skipping post "
-                        f"{getattr(post, 'id', 'unknown')}: {e}"
+                    # print(
+                    #     f"⚠️ Skipping post "
+                    #     f"{getattr(post, 'id', 'unknown')}: {e}"
+                    # )
+                    # traceback.print_exc()
+                    logger.exception(
+                        "⚠️ Skipping post %s",
+                        getattr(post, "id", "unknown")
                     )
-                    traceback.print_exc()
                     continue
-
-        except Exception as e:
-            print(f"❌ Failed to read subreddit {sub}: {e}")
-            traceback.print_exc()
+        except Exception:
+        # except Exception as e:
+            # print(f"❌ Failed to read subreddit {sub}: {e}")
+            # traceback.print_exc()
+            logger.exception(
+                "❌ Failed to read subreddit %s",
+                sub
+            )
             continue
 
     # After your scraping logic finishes
     # export_to_csv_append(MATCHED_POSTS)
     export_to_csv(MATCHED_POSTS)
 
-    #Save all seen_ids to file
-    save_seen_ids(seen_ids)
+    # Save all seen_ids to file
+    # save_seen_ids(seen_ids) # redundant
 
-    print("\n📊 SCRAPER SUMMARY")
-    print(f"Total posts seen: {total_seen}")
-    print(f"Skipped (too old): {total_skipped_old}")
-    print(f"Skipped (flair): {total_skipped_flair}")
-    print(f"Skipped (Already Seen): {total_skipped_already_seen}")
-    print(f"Skipped (no category match): {total_skipped_no_match}")
-    print(f"Processed (passed filters): {total_processed}")
-    print(f"Errors: {total_errors}\n")
+    # print("\n📊 SCRAPER SUMMARY")
+    # print(f"Total posts seen: {total_seen}")
+    # print(f"Skipped (too old): {total_skipped_old}")
+    # print(f"Skipped (flair): {total_skipped_flair}")
+    # print(f"Skipped (Already Seen): {total_skipped_already_seen}")
+    # print(f"Skipped (no category match): {total_skipped_no_match}")
+    # print(f"Processed (passed filters): {total_processed}")
+    # print(f"Errors: {total_errors}\n")
 
-    ####################
-    # Send email
-    ####################
-    # try:
-    #     send_summary_email(MATCHED_POSTS)
-    #     print("📧 Summary email sent")
-    # except Exception as e:
-    #     print("⚠️ Email failed:", e)
-    #     traceback.print_exc()
+    # detailed logger output for docker stdout
+    logger.info("📊 SCRAPER SUMMARY")
+    logger.info("Total posts seen: %s", total_seen)
+    logger.info("Skipped (too old): %s", total_skipped_old)
+    logger.info("Skipped (flair): %s", total_skipped_flair)
+    logger.info("Skipped (Already Seen): %s", total_skipped_already_seen)
+    logger.info("Skipped (no category match): %s", total_skipped_no_match)
+    logger.info("Processed (new deals inserted): %s", total_processed)
+    logger.info("Errors: %s", total_errors)
 
     ####################
     # Send email (gated)
@@ -630,41 +683,53 @@ def run_scraper():
 
         if within_hours and has_new_deals:
             send_summary_email(MATCHED_POSTS)
-            print("📧 Summary email sent")
+            # print("📧 Summary email sent")
+            logger.info("📧 Summary email sent")
         else:
             if not within_hours:
-                print("📭 Email skipped (outside 8am–11pm window)")
+                # print("📭 Email skipped (outside 8am–11pm window)")
+                logger.info("📭 Email skipped (outside 8am–11pm window)")
             if not has_new_deals:
-                print("📭 Email skipped (no new deals)")
-    except Exception as e:
-        print("⚠️ Email failed:", e)
-        traceback.print_exc()
+                # print("📭 Email skipped (no new deals)")
+                logger.info("📭 Email skipped (no new deals)")
+    except Exception:
+    # except Exception as e:
+        # print("⚠️ Email failed:", e)
+        # traceback.print_exc()
+        logger.exception("⚠️ Email failed")
 
     ####################
     # DB cleanup
     ####################
     try:
         cleanup_old_deals()
-        print("🧹 Cleaned up old deals (>30 days)")
-    except Exception as e:
-        print("⚠️ Cleanup failed:", e)
-        traceback.print_exc()
+        # print("🧹 Cleaned up old deals (>30 days)")
+        logger.info("🧹 Cleaned up old deals (>30 days)")
+    except Exception:
+    # except Exception as e:
+        logger.exception("⚠️ Cleanup failed")
+        # print("⚠️ Cleanup failed:", e)
+        # traceback.print_exc()
 
 #######################################
 # Main loop
 #######################################
 
 while True:
-    print("🔁 Running scraper at", datetime.now())
+
+    logger.info("🔁 Running scraper")
 
     try:
         run_scraper()
 
-    except Exception as e:
-        print("❌ Unhandled error in run_scraper:")
-        print(e)
-        time.sleep(5 * 60) # Retry after 5 minutes if an error occurs
+    except Exception: 
+        logger.exception("❌ Unhandled error in run_scraper")
+        logger.info("Retrying in 5 minutes")
+        # Retry after 5 minutes if an error occurs
+        time.sleep(5 * 60)
         continue
 
-    print("✅ Done. Sleeping for 30 minutes.\n")
-    time.sleep(30 * 60) # Sleep for 30 minutes
+    logger.info("✅ Done. Sleeping for 30 minutes.")
+
+    # Sleep for 30 minutes
+    time.sleep(30 * 60)

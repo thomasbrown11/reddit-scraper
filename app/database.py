@@ -13,9 +13,9 @@ def get_connection():
         # create deals.db sql lite db file if it doesn't exist
         return sqlite3.connect(DB_FILE)
 
-###########################
+##############################
 # init db and deals table
-###########################
+##############################
 
 def initialize_database():
         
@@ -55,9 +55,9 @@ def initialize_database():
     conn.commit()
     conn.close()
 
-###########################
+##############################
 # deal insert helper
-###########################
+##############################
 
 def insert_deal(deal):
 
@@ -104,9 +104,10 @@ def insert_deal(deal):
 
     return inserted
 
-###########################
+##############################
 # delete stale post helper
-###########################
+##############################
+
 def cleanup_old_deals():
 
     conn = get_connection()
@@ -119,3 +120,29 @@ def cleanup_old_deals():
 
     conn.commit()
     conn.close()
+
+##############################
+# duplicate check for scraper
+##############################
+
+def already_seen(source, source_id):
+
+    conn = get_connection()
+    cursor = conn.cursor()
+
+    cursor.execute("""
+        SELECT 1
+        FROM deals
+        WHERE source = ?
+        AND source_id = ?
+        LIMIT 1
+    """, (
+        source,
+        source_id
+    ))
+
+    result = cursor.fetchone()
+
+    conn.close()
+
+    return result is not None
