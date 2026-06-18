@@ -436,7 +436,7 @@ def run_scraper():
     total_errors = 0
 
     # create UTC cutoff timestamp
-    # posts older than this data will be discarded
+    # posts older than this date will be discarded
     # cut off is 2 weeks
     cutoff_date = (
         datetime.now(timezone.utc)
@@ -445,16 +445,28 @@ def run_scraper():
 
     # init category based post storage
     # purely for email structuring convenience
+    # MATCHED_POSTS = {
+    #     "Case Fan": [],
+    #     "CPU": [],
+    #     "CPU Cooler": [],
+    #     "GPU": [],
+    #     "HDD": [],
+    #     "Monitor": [],
+    #     "Motherboard": [],
+    #     "RAM": [],
+    #     "SSD": [],
+    #     "Bundle": []
+    # }
+    
+    # init category based post storage
+    # purely for email structuring convenience
+    # dynamically built from part_kewords config
     MATCHED_POSTS = {
-        "Case Fan": [],
-        "CPU": [],
-        "CPU Cooler": [],
-        "GPU": [],
-        "HDD": [],
-        "Monitor": [],
-        "Motherboard": [],
-        "RAM": [],
-        "SSD": [],
+        **{
+            category: []
+            for category in PART_KEYWORDS.keys()
+        },
+        # append bundle at end of built categories
         "Bundle": []
     }
 
@@ -516,29 +528,40 @@ def run_scraper():
                     # Category detection
                     ####################
 
-                    matched_parts = set()
+                    # init set which will contain one or more categories if post matches search strings from config
+                    matched_categories = set()
 
-                    for kw, part in KEYWORD_TO_PART.items():
+                    # loops through keyword mapping from config like: 
+                    # {'4080': 'GPU', '4090': 'GPU', '9070xt' : 'GPU', '7800xt' : 'CPU' }
+                    # stores only category values ('GPU', 'CPU', etc.)
+                    for kw, part_type in KEYWORD_TO_PART.items():
+                        # escape keyword so regex treats it as a literal search string
+                        # \b ensures whole-word matching instead of partial matches
                         if re.search(rf"\b{re.escape(kw)}\b", title):
-                            matched_parts.add(part)
+                            # push category name to set
+                            matched_categories.add(part_type)
 
-                    if not matched_parts:
+                    # if no matching categories no relevant parts matching is implied. skip
+                    if not matched_categories:
                         total_skipped_no_match += 1
                         continue
+                    
+                    # if multiple categories match, classify as bundle instead of single part
+                    is_bundle = len(matched_categories) > 1
 
-                    is_bundle = len(matched_parts) > 1
-
+                    # set category as the single value in matched_categories or Bundle if multiple values
                     category = (
                         "Bundle"
                         if is_bundle
-                        else list(matched_parts)[0]
+                        else list(matched_categories)[0]
                     )
 
                     ####################
                     # Highlight logic
                     ####################
 
-                    # will add YES to highlight field if string match in from target models
+                    # search title, return true if any target models from config found
+                    # used to add 'YES' to highlight section
                     is_target = any(
                         target in title
                         for target in TARGET_MODELS
@@ -548,6 +571,7 @@ def run_scraper():
                     # Deal logic
                     ####################
 
+                    # use evaluation helper and determine if titple price is less than base price
                     deal_tier = evaluate_price(
                         title,
                         TARGET_MODELS
@@ -573,7 +597,9 @@ def run_scraper():
                     }
 
                     # insert into deals.db deals table
-                    # inserted boolean true if success
+                    # inserted = boolean true if success
+                    # final database uniqueness check
+                    # normally true because already_seen() filters earlier
                     inserted = insert_deal(deal)
 
                     if inserted:
@@ -598,7 +624,8 @@ def run_scraper():
             )
             continue
 
-    # build latest_deals.csv for email attachement
+    # build latest_deals.csv for email attachement after loop exit
+    # latest_deals.csv replaced per run with new deal collection
     export_to_latest_csv(MATCHED_POSTS)
 
     # detailed logger output for docker stdout
