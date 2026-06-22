@@ -10,8 +10,8 @@ DATA_DIR.mkdir(parents=True, exist_ok=True)
 DB_FILE = DATA_DIR / "deals.db"
 
 def get_connection():
-        # create deals.db sql lite db file if it doesn't exist
-        return sqlite3.connect(DB_FILE)
+    # create deals.db sql lite db file if it doesn't exist
+    return sqlite3.connect(DB_FILE)
 
 ##############################
 # init db and deals table
@@ -59,67 +59,119 @@ def initialize_database():
 # deal insert helper
 ##############################
 
+# def insert_deal(deal):
+
+#     conn = get_connection()
+#     cursor = conn.cursor()
+
+#     # OR IGNORE is added to prevent scraper crashes on duplicate records based on the table's UNIQUE(source, source_id). 
+#     # If any constraint fails (including uniqueness check) skip row
+#     cursor.execute("""
+#         INSERT OR IGNORE INTO deals (
+#             source,
+#             source_id,
+#             part,
+#             created_utc,
+#             price,
+#             title,
+#             url,
+#             subreddit,
+#             flair,
+#             highlight,
+#             deal_tier
+#         )
+#         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+#     """, (
+#         deal["source"],
+#         deal["source_id"],
+#         deal["part"],
+#         deal["created_utc"],
+#         deal["price"],
+#         deal["title"],
+#         deal["url"],
+#         deal["subreddit"],
+#         deal["flair"],
+#         deal["highlight"],
+#         deal["deal_tier"]
+#     ))
+
+#     # make and return inserted boolean to check if row was added in scraper ((insert_deal(deal) = true)
+#     # cursor is temp sql session reference only and remembers the execute command result above only
+#     inserted = cursor.rowcount > 0
+
+#     conn.commit()
+#     conn.close()
+
+#     return inserted
+
 def insert_deal(deal):
 
-    conn = get_connection()
-    cursor = conn.cursor()
+    # Insert a deal row into the database.
+    # Uses INSERT OR IGNORE so duplicates (based on UNIQUE source + source_id)
+    # do not raise errors and are safely skipped.
+    # The context manager ensures the transaction is committed on success,
+    # or rolled back automatically if an error occurs.
+    # note: insert_deal assumes deal dict contains all required fields and valid values;
+    # no validation is performed here.
+    with get_connection() as conn:
 
-    # OR IGNORE is added to prevent scraper crashes on duplicate records based on the table's UNIQUE(source, source_id). 
-    # If any constraint fails (including uniqueness check) skip row
-    cursor.execute("""
-        INSERT OR IGNORE INTO deals (
-            source,
-            source_id,
-            part,
-            created_utc,
-            price,
-            title,
-            url,
-            subreddit,
-            flair,
-            highlight,
-            deal_tier
-        )
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-    """, (
-        deal["source"],
-        deal["source_id"],
-        deal["part"],
-        deal["created_utc"],
-        deal["price"],
-        deal["title"],
-        deal["url"],
-        deal["subreddit"],
-        deal["flair"],
-        deal["highlight"],
-        deal["deal_tier"]
-    ))
+        cursor = conn.cursor()
 
-    # make and return inserted boolean to check if row was added in scraper ((insert_deal(deal) = true)
-    # cursor is temp sql session reference only and remembers the execute command result above only
-    inserted = cursor.rowcount > 0
+        cursor.execute("""
+            INSERT OR IGNORE INTO deals (
+                source,
+                source_id,
+                part,
+                created_utc,
+                price,
+                title,
+                url,
+                subreddit,
+                flair,
+                highlight,
+                deal_tier
+            )
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        """, (
+            deal["source"],
+            deal["source_id"],
+            deal["part"],
+            deal["created_utc"],
+            deal["price"],
+            deal["title"],
+            deal["url"],
+            deal["subreddit"],
+            deal["flair"],
+            deal["highlight"],
+            deal["deal_tier"]
+        ))
 
-    conn.commit()
-    conn.close()
+        # make and return inserted boolean to check if row was added in scraper ((insert_deal(deal) = true)
+        # cursor is temp sql session reference only and remembers the execute command result above only
+        inserted = cursor.rowcount > 0
 
-    return inserted
+        return inserted
 
 ##############################
 # delete stale post helper
 ##############################
 
 def cleanup_old_deals():
+    
+    # Open SQLite connection using context manager (python 'with')
+    # commit is called automatically if the DELETE succeeds
+    # rollback is triggered if an exception occurs
+    # connection is always closed at the end of the block
+    with get_connection() as conn:
 
-    conn = get_connection()
-    cursor = conn.cursor()
+        # Delete all posts with created_utc older than 30 days
+        # Prevents unbounded db growth
+        conn.execute("""
+            DELETE FROM deals
+            WHERE created_utc < datetime('now', '-30 days')
+        """)
 
-    conn.execute("""
-        DELETE FROM deals
-        WHERE created_utc < datetime('now', '-30 days')
-    """)
-
-    conn.commit()
-    conn.close()
+    
 
 ##############################
 # duplicate check for scraper
@@ -127,22 +179,31 @@ def cleanup_old_deals():
 
 def already_seen(source, source_id):
 
-    conn = get_connection()
-    cursor = conn.cursor()
+    # Open SQLite database connection
+    # The "with" context manager automatically closes the connection
+    # when this block exits, even if an exception occurs
+    # The returned connection object is assigned locally to "conn"
+    with get_connection() as conn:
 
-    cursor.execute("""
-        SELECT 1
-        FROM deals
-        WHERE source = ?
-        AND source_id = ?
-        LIMIT 1
-    """, (
-        source,
-        source_id
-    ))
+        # cursor here is an SQL command interface
+        cursor = conn.cursor()
 
-    result = cursor.fetchone()
+        # Check whether a deal already exists with this source + source_id combination.
+        # SELECT 1 returns a constant value instead of full row data because we only need
+        # to know whether a matching record exists, not retrieve the record itself
+        # ? placeholders are parameterized values supplied separately below, so the input
+        # is treated as data rather than executable SQL syntax
+        # Parameterized queries intended to prevent SQL injection patterns 
+        cursor.execute("""
+            SELECT 1
+            FROM deals
+            WHERE source = ?
+            AND source_id = ?
+            LIMIT 1
+        """, (
+            source,
+            source_id
+        ))
 
-    conn.close()
-
-    return result is not None
+        # returns true or false based on deals sql passing 1 or not
+        return cursor.fetchone() is not None
