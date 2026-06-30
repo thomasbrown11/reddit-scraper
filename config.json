@@ -1,4 +1,11 @@
 {
+
+  "subreddits" : [
+    "buildapcsales", 
+    "techdeals", 
+    "pcdeals"
+  ],
+
   "excluded_flairs": [
     "closed",
     "trading",
@@ -29,11 +36,8 @@
     "9060 xt": { "base_price": 475 },
     "peerless": { "base_price": 35 },
     "tomahawk": { "base_price": 200 },
-    "ddr5": { "base_price": 400 },
-    "34\"": { "base_price": 400 },
-    "34 inch": { "base_price": 400 },
-    "34-inch": { "base_price": 400 },
-    "ultrawide": { "base_price": 400 },
-    "WQHD": { "base_price": 400 }
+    "b650": { "base_price": 150},
+    "b850": { "base_price": 150},
+    "ddr5": { "base_price": 400 }
   }
 }

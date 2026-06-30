@@ -6,7 +6,6 @@ DATA_DIR = Path(__file__).parent.parent / "data"
 # make data directory if it doesn't exist, don't crash if it exists. make parent directories as well if missing (not relevant)
 DATA_DIR.mkdir(parents=True, exist_ok=True)
 
-# DB_FILE = "/app/data/deals.db"
 DB_FILE = DATA_DIR / "deals.db"
 
 def get_connection():
@@ -18,91 +17,44 @@ def get_connection():
 ##############################
 
 def initialize_database():
-        
-    conn = get_connection()
-    cursor = conn.cursor()
+    
+    # Using with/as context manager to prevent orphan sql sessions
+    with get_connection() as conn:
+        cursor = conn.cursor()
 
-    # create deals table
-    # PK is db id only
-    # UNIQUE tracks source + source_id meaning that the scraper db can expand to more sources
-    # EX: reddit + abc123, then amazon + abc123
-    # keeping subreddit and flair as optional enrichment to avoid overcomplicating with expanded normalization tables
-    cursor.execute("""
-        CREATE TABLE IF NOT EXISTS deals (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-                    
-            source TEXT NOT NULL,
-            source_id TEXT NOT NULL,
-                    
-            part TEXT,
-            created_utc TEXT,
-            price REAL,
-            title TEXT,
-            url TEXT,
-                   
-            subreddit TEXT,
-            flair TEXT,
-                   
-            highlight TEXT,
-            deal_tier TEXT,
-                    
-            UNIQUE(source, source_id)
-                    
-                    
-        )
-    """)
-
-    conn.commit()
-    conn.close()
+        # create deals table
+        # PK is db id only
+        # UNIQUE tracks source + source_id meaning that the scraper db can expand to more sources
+        # EX: reddit + abc123, then amazon + abc123
+        # keeping subreddit and flair as optional enrichment to avoid overcomplicating with expanded normalization tables
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS deals (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                        
+                source TEXT NOT NULL,
+                source_id TEXT NOT NULL,
+                        
+                part TEXT,
+                created_utc TEXT,
+                price REAL,
+                title TEXT,
+                url TEXT,
+                        
+                subreddit TEXT,
+                flair TEXT,
+                        
+                highlight TEXT,
+                deal_tier TEXT,
+                        
+                UNIQUE(source, source_id)
+                        
+                        
+            )
+        """)
 
 ##############################
 # deal insert helper
 ##############################
-
-# def insert_deal(deal):
-
-#     conn = get_connection()
-#     cursor = conn.cursor()
-
-#     # OR IGNORE is added to prevent scraper crashes on duplicate records based on the table's UNIQUE(source, source_id). 
-#     # If any constraint fails (including uniqueness check) skip row
-#     cursor.execute("""
-#         INSERT OR IGNORE INTO deals (
-#             source,
-#             source_id,
-#             part,
-#             created_utc,
-#             price,
-#             title,
-#             url,
-#             subreddit,
-#             flair,
-#             highlight,
-#             deal_tier
-#         )
-#         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-#     """, (
-#         deal["source"],
-#         deal["source_id"],
-#         deal["part"],
-#         deal["created_utc"],
-#         deal["price"],
-#         deal["title"],
-#         deal["url"],
-#         deal["subreddit"],
-#         deal["flair"],
-#         deal["highlight"],
-#         deal["deal_tier"]
-#     ))
-
-#     # make and return inserted boolean to check if row was added in scraper ((insert_deal(deal) = true)
-#     # cursor is temp sql session reference only and remembers the execute command result above only
-#     inserted = cursor.rowcount > 0
-
-#     conn.commit()
-#     conn.close()
-
-#     return inserted
 
 def insert_deal(deal):
 
